@@ -1,0 +1,143 @@
+.btn-circle.btn-xl.root_selected{
+    border-color: steelblue;
+    border-width: 5px;
+}
+
+.btn-circle.btn-xl.root_previous{
+    border-color: red;
+    border-width: 5px;
+}
+
+.btn-circle.btn-xl { 
+    width: 70px; 
+    height: 70px; 
+    padding: 10px 16px; 
+    border-radius: 35px; 
+    font-size: 20px; 
+    text-align: center; 
+}
+
+.btn-circle.tonic_gp{
+    color: black;
+    background-color: #37aeff;
+    border-color: #37aeff;
+}
+
+.btn-circle.subdom_gp{
+    color: black;
+    background-color: #aeff37;
+    border-color: #aeff37;
+}
+
+.btn-circle.dom_gp{
+    color: black;
+    background-color:#ff37ae;
+    border-color: #ff37ae;
+}
+
+.btn-circle.median_gp{
+    color: black;
+    background-color:#9B73D7;
+    border-color: #9B73D7;
+}
+
+.bass_selected{
+    background-color: red;
+    color: red;
+}
+
+.chroma_selected{
+    background-color: #37aeff;
+}
+
+.chroma{
+    width: 100px;
+    text-align: center;
+    user-select: none;
+}
+
+.bass{
+    width: 35px;
+    text-align: center;
+}
+
+
+/* Circular Alignment //////////////////////////////////////////////////////////////////////////*/
+.transparent_square{
+	width: 100%;
+	height: auto;
+}
+
+.central_text{
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	position: absolute;
+}
+
+.moon_container{
+	position: absolute;
+	left: 90%;
+	top: 80%;
+	width: 30%;
+	transform: translate(-50%, -50%);
+}
+
+.moon{
+	width: 100%;
+	height: auto;
+	position: relative;
+	left: 175%;
+}
+
+.moon_container.moon1{
+	transform: translate(-50%, -50%) rotate(30deg);
+}
+.moon_container.moon2{
+	transform: translate(-50%, -50%) rotate(70deg);
+}
+.moon_container.moon3{
+	transform: translate(-50%, -50%) rotate(110deg);
+}
+.moon_container.moon4{
+	transform: translate(-50%, -50%) rotate(190deg);
+}
+.moon_container.moon5{
+	transform: translate(-50%, -50%) rotate(230deg);
+}
+.moon_container.moon6{
+	transform: translate(-50%, -50%) rotate(310deg);
+}
+.moon_container.moon7{
+	transform: translate(-50%, -50%) rotate(350deg);
+}
+
+.moon.moon1{
+	transform: rotate(-30deg);
+}
+.moon.moon2{
+	transform: rotate(-70deg);
+}
+.moon.moon3{
+	transform: rotate(-110deg);
+}
+.moon.moon4{
+	transform: rotate(-190deg);
+}
+.moon.moon5{
+	transform: rotate(-230deg);
+}
+.moon.moon6{
+	transform: rotate(-310deg);
+}
+.moon.moon7{
+	transform: rotate(-350deg);
+}
+
+/* Connections //////////////////////////////////////////////////////////////////////// */
+.connection{
+    border: 4px solid #007bff;
+    z-index: 1;
+    border-radius: 100%;
+    pointer-events: none;
+}

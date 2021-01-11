@@ -1,0 +1,140 @@
+{% extends 'base.html'%}
+
+{% block head %}
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+
+<script src="https://cdn.jsdelivr.net/combine/npm/tone@14.7.58,npm/@magenta/music@1.21.0/es6/core.js,npm/focus-visible@5,npm/html-midi-player@1.1.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@magenta/music@^1.0.0"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+<script src="{{url_for('static',filename='jquery.connections.js')}}"></script>
+
+<title> Index </title>
+{% endblock %}
+
+{% block body %}
+
+<nav class="navbar navbar-expand-sm bg-light">
+
+    <!-- Links -->
+    <ul class="navbar-nav">
+      <li class="nav-item">
+        <button onclick = "window.location.href='/random';" class="btn">Random</button><br> 
+      </li>
+      <li class="nav-item">
+        <button onclick = "window.location.href='/library';" class="btn">Library</button><br> 
+      </li>
+      <li class="nav-item">
+        <form method=post enctype=multipart/form-data action=/upload ckass="form form-inline">
+            <div class="input-group">
+            <div class="custom-file">
+                <input type="file" class="custom-file-input" id="customFile" name=user_midi>
+                <label class="custom-file-label" for="customFile">Choose file</label>
+            </div>
+            <script>
+                $(".custom-file-input").on("change", function() {
+                  var fileName = $(this).val().split("\\").pop();
+                  $(this).siblings(".custom-file-label").addClass("selected").html(fileName);
+                });
+            </script>
+            <span class="input-group-addon"></span>
+            <input type=submit class="btn" value=Upload>
+            </div>
+        </form>
+      </li>
+    </ul>
+  
+  </nav>
+
+<div class="container pt-3">
+
+    {% if midi %}
+        <midi-player src="{{url_for('static',filename=midi)}}" sound-font visualizer="#vis"></midi-player>
+        <midi-visualizer src="{{url_for('static',filename=midi)}}" type="piano-roll" id="vis" class="midi_vis"></midi-visualizer>
+
+        {% if midi_out %}
+        <midi-player src="{{url_for('static',filename=midi_out)}}" sound-font visualizer="#vis_out"></midi-player>
+        <midi-visualizer src="{{url_for('static',filename=midi_out)}}" type="piano-roll" id="vis_out" class="midi_vis"></midi-visualizer>
+        {% endif %}
+        
+        <table class="table table-hover table-fixed" style="width:800px">
+            <thead class="thead-light">
+            <tr>
+                {% for i in range(1,9) %}
+                <th style="text-align: left; width:100px;"> {{ i }} </th>
+                {% endfor %}
+            </tr>
+            </thead>
+            <tr>
+                {% for c in chords %}
+                <td style="text-align: left;"> {{ c }} </td>
+                {% endfor %}
+            </tr>
+            <tr>
+                {% for c in new_chords %}
+                <td style="text-align: left;"> {{ c }} </td>
+                {% endfor %}
+            </tr>
+        </table> 
+
+        <p> Input chord: </p>
+        <p id=chd_in_display></p>
+
+    <div class="row">
+        <div class="col-6 container-fluid">
+            <div class="root_select circle_container col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2 col-xs-12">
+                <p> Key = C major </p>
+                <img class="transparent_square" src="http://i.stack.imgur.com/5Y4F4.jpg" width="2" height="2" />
+                <div class="moon_container moon2"><button id=r0 class="root btn btn-circle btn-xl moon moon2 tonic_gp r1" data-toggle = "tooltip" title=""> C </button> </div>
+                <div class="moon_container moon4"><button id=r2 class="root btn btn-circle btn-xl moon moon4 subdom_gp r2" data-toggle = "tooltip" title=""> D </button> </div>
+                <div class="moon_container moon1"><button id=r4 class="root btn btn-circle btn-xl moon moon1 median_gp r3" data-toggle = "tooltip" title=""> E </button> </div>
+                <div class="moon_container moon5"><button id=r5 class="root btn btn-circle btn-xl moon moon5 subdom_gp r4" data-toggle = "tooltip" title=""> F </button> </div>
+                <div class="moon_container moon7"><button id=r7 class="root btn btn-circle btn-xl moon moon7 dom_gp r5" data-toggle = "tooltip" title=""> G </button> </div>
+                <div class="moon_container moon3"><button id=r9 class="root btn btn-circle btn-xl moon moon3 tonic_gp r6" data-toggle = "tooltip" title=""> A </button> </div>
+                <div class="moon_container moon6"><button id=r11 class="root btn btn-circle btn-xl moon moon6 dom_gp r7" data-toggle = "tooltip" title=""> B </button> </div>
+                <script>
+                    $(document).ready(function(){
+                      $('[data-toggle="tooltip"]').tooltip();   
+                    });
+                </script>
+            </div>
+        </div>
+
+        <div class="col-3">
+            <table class="chroma_select table table-bordered table-sm table-fixed", style="width:150px;">
+                {% for i in range(11,-1,-1)%}
+                <tr>
+                    <td class=bass id={{i}}></td>
+                    <td class=chroma id={{i}}>{{["Root","m2","M2","m3","M3","P4","A4/d5","P5","m6","M6","m7","M7"][i]}} </td>
+                </tr>
+                {% endfor %}
+            </table>
+
+        </div>
+
+        <div class="col-3">
+            <button id=M3 class="quick_chd btn btn-light"> major triad </button>
+            <button id=m3 class="quick_chd btn btn-light"> minor triad </button><br><br>
+
+            <button id=clear_chd class="quick_chd btn btn-light"> Clear chord </button><br><br>
+
+            <button id=add_chd class="btn btn-light"> Add new chord </button>
+            <button id=rep_chd class="btn btn-light"> Repeat chord </button><br><br>
+            
+            <button id=clear_prog class="btn btn-light"> Clear progression </button><br><br>
+
+            <form action="/swap" method="POST"> 
+                <input type=hidden name=midi_in value={{midi}}>
+                <input type=hidden name=chd_in value="{{chords}}">
+                <input type=hidden id=chd_in_send name="chd">
+                <button type="submit" class="btn btn-primary">Submit</button>
+            </form>
+        </div> 
+    </div>
+    {% endif %}
+</div>
+<script src="{{url_for('static', filename='main.js')}}"></script>
+    
+{% endblock %}
