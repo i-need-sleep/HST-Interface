@@ -176,6 +176,10 @@ def swap():
     out_midi.write('static/'+midi_out)
     return render_template('index.html', midi=midi_in, midi_out=midi_out, chords=chord_in, new_chords=chord_out)
 
+@app.route('/get_prog_prob', methods=['GET'])
+def get_prog_prob():
+    return {"ha":"llo"}
+    
 if __name__ == '__main__':
     app.run("127.0.0.1", 5000, debug = True)
     

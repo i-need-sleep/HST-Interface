@@ -11,6 +11,8 @@
 
 <script src="{{url_for('static',filename='jquery.connections.js')}}"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/p5@1.2.0/lib/p5.js"></script>
+
 <title> Index </title>
 {% endblock %}
 
@@ -48,7 +50,7 @@
   
   </nav>
 
-<div class="container pt-3">
+<div class="container pt-3 pb-5" id="app">
 
     {% if midi %}
         <midi-player src="{{url_for('static',filename=midi)}}" sound-font visualizer="#vis"></midi-player>
@@ -76,6 +78,16 @@
                 {% for c in new_chords %}
                 <td style="text-align: left;"> {{ c }} </td>
                 {% endfor %}
+            </tr>
+            <tr>
+                <td id="new_1" class="chord_input"> </td>
+                <td id="new_2"> </td>
+                <td id="new_3"> </td>
+                <td id="new_4"> </td>
+                <td id="new_5"> </td>
+                <td id="new_6"> </td>
+                <td id="new_7"> </td>
+                <td id="new_8"> </td>
             </tr>
         </table> 
 
@@ -118,11 +130,13 @@
             <button id=M3 class="quick_chd btn btn-light"> major triad </button>
             <button id=m3 class="quick_chd btn btn-light"> minor triad </button><br><br>
 
+            <button id=play_chd class="quick_chd btn btn-light"> Play chord </button>
             <button id=clear_chd class="quick_chd btn btn-light"> Clear chord </button><br><br>
 
             <button id=add_chd class="btn btn-light"> Add new chord </button>
             <button id=rep_chd class="btn btn-light"> Repeat chord </button><br><br>
             
+            <button id=play_prog class="btn btn-light"> Play progression </button>
             <button id=clear_prog class="btn btn-light"> Clear progression </button><br><br>
 
             <form action="/swap" method="POST"> 
@@ -133,8 +147,12 @@
             </form>
         </div> 
     </div>
+
+    <div id="get_prog_prob" hidden>{{url_for('get_prog_prob')}}</div>
+    
+    <script src="{{url_for('static', filename='main.js')}}"></script>
     {% endif %}
 </div>
-<script src="{{url_for('static', filename='main.js')}}"></script>
+
     
 {% endblock %}
