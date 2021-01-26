@@ -1,17 +1,28 @@
 {% extends 'base.html'%}
 
 {% block head %}
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 
+<!-- Magenta -->
 <script src="https://cdn.jsdelivr.net/combine/npm/tone@14.7.58,npm/@magenta/music@1.21.0/es6/core.js,npm/focus-visible@5,npm/html-midi-player@1.1.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/@magenta/music@^1.0.0"></script>
+
+<!-- Axios -->
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
 
+<!-- DOM connections, to be removed -->
 <script src="{{url_for('static',filename='jquery.connections.js')}}"></script>
 
+<!-- P5, to be removed -->
 <script src="https://cdn.jsdelivr.net/npm/p5@1.2.0/lib/p5.js"></script>
+
+<!-- Keyboard, under construction -->
+<script src="https://cdn.jsdelivr.net/npm/audiokeys@0.1.1/dist/audiokeys.min.js"></script>
+
+<!-- D3, for overlaying the Magenta visualizer -->
+<script src="https://d3js.org/d3.v6.min.js"></script>
+
+<!-- Chord network -->
+<script src=https://rawgit.com/emiliorizzo/vue-d3-network/master/dist/vue-d3-network.umd.js></script>
 
 <title> Index </title>
 {% endblock %}
@@ -51,108 +62,146 @@
   </nav>
 
 <div class="container pt-3 pb-5" id="app">
-
     {% if midi %}
         <midi-player src="{{url_for('static',filename=midi)}}" sound-font visualizer="#vis"></midi-player>
         <midi-visualizer src="{{url_for('static',filename=midi)}}" type="piano-roll" id="vis" class="midi_vis"></midi-visualizer>
+        <svg class="original_svg svg" height="0px"></svg>
 
         {% if midi_out %}
-        <midi-player src="{{url_for('static',filename=midi_out)}}" sound-font visualizer="#vis_out"></midi-player>
-        <midi-visualizer src="{{url_for('static',filename=midi_out)}}" type="piano-roll" id="vis_out" class="midi_vis"></midi-visualizer>
+        <midi-player src="{{url_for('static',filename=midi_out)}}" sound-font visualizer="#vis_out" class=up></midi-player>
+        <midi-visualizer src="{{url_for('static',filename=midi_out)}}" type="piano-roll" id="vis_out" class="midi_vis up"></midi-visualizer>
+        <svg class="swapped_svg svg" id="swapped_svg" height="0px"></svg>
+
+        <div style="position: relative; top: -440px">
+        {% else %}
+        <div style="position: relative; top: -200px">
         {% endif %}
         
-        <table class="table table-hover table-fixed" style="width:800px">
-            <thead class="thead-light">
-            <tr>
-                {% for i in range(1,9) %}
-                <th style="text-align: left; width:100px;"> {{ i }} </th>
-                {% endfor %}
-            </tr>
-            </thead>
-            <tr>
-                {% for c in chords %}
-                <td style="text-align: left;"> {{ c }} </td>
-                {% endfor %}
-            </tr>
-            <tr>
-                {% for c in new_chords %}
-                <td style="text-align: left;"> {{ c }} </td>
-                {% endfor %}
-            </tr>
-            <tr>
-                <td id="new_1" class="chord_input"> </td>
-                <td id="new_2"> </td>
-                <td id="new_3"> </td>
-                <td id="new_4"> </td>
-                <td id="new_5"> </td>
-                <td id="new_6"> </td>
-                <td id="new_7"> </td>
-                <td id="new_8"> </td>
-            </tr>
-        </table> 
 
-        <p> Input chord: </p>
-        <p id=chd_in_display></p>
-
-    <div class="row">
-        <div class="col-6 container-fluid">
-            <div class="root_select circle_container col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2 col-xs-12">
-                <p> Key = C major </p>
-                <img class="transparent_square" src="http://i.stack.imgur.com/5Y4F4.jpg" width="2" height="2" />
-                <div class="moon_container moon2"><button id=r0 class="root btn btn-circle btn-xl moon moon2 tonic_gp r1" data-toggle = "tooltip" title=""> C </button> </div>
-                <div class="moon_container moon4"><button id=r2 class="root btn btn-circle btn-xl moon moon4 subdom_gp r2" data-toggle = "tooltip" title=""> D </button> </div>
-                <div class="moon_container moon1"><button id=r4 class="root btn btn-circle btn-xl moon moon1 median_gp r3" data-toggle = "tooltip" title=""> E </button> </div>
-                <div class="moon_container moon5"><button id=r5 class="root btn btn-circle btn-xl moon moon5 subdom_gp r4" data-toggle = "tooltip" title=""> F </button> </div>
-                <div class="moon_container moon7"><button id=r7 class="root btn btn-circle btn-xl moon moon7 dom_gp r5" data-toggle = "tooltip" title=""> G </button> </div>
-                <div class="moon_container moon3"><button id=r9 class="root btn btn-circle btn-xl moon moon3 tonic_gp r6" data-toggle = "tooltip" title=""> A </button> </div>
-                <div class="moon_container moon6"><button id=r11 class="root btn btn-circle btn-xl moon moon6 dom_gp r7" data-toggle = "tooltip" title=""> B </button> </div>
-                <script>
-                    $(document).ready(function(){
-                      $('[data-toggle="tooltip"]').tooltip();   
-                    });
-                </script>
-            </div>
-        </div>
-
-        <div class="col-3">
-            <table class="chroma_select table table-bordered table-sm table-fixed", style="width:150px;">
-                {% for i in range(11,-1,-1)%}
+        
+            <table class="table table-hover table-fixed" style="width:800px">
+                <thead class="thead-light">
                 <tr>
-                    <td class=bass id={{i}}></td>
-                    <td class=chroma id={{i}}>{{["Root","m2","M2","m3","M3","P4","A4/d5","P5","m6","M6","m7","M7"][i]}} </td>
+                    {% for i in range(1,9) %}
+                    <th style="text-align: left; width:100px;"> {{ i }} </th>
+                    {% endfor %}
                 </tr>
-                {% endfor %}
-            </table>
+                </thead>
+                <tr>
+                    {% for c in chords %}
+                    <td style="text-align: left;"> {{ c }} </td>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    {% for c in new_chords %}
+                    <td style="text-align: left;"> {{ c }} </td>
+                    {% endfor %}
+                </tr>
+                <tr>
+                    <td id="new_1" class="chord_input"> &nbsp</td>
+                    <td id="new_2"> </td>
+                    <td id="new_3"> </td>
+                    <td id="new_4"> </td>
+                    <td id="new_5"> </td>
+                    <td id="new_6"> </td>
+                    <td id="new_7"> </td>
+                    <td id="new_8"> </td>
+                </tr>
+            </table> 
 
+            <p> Input chord: </p>
+            <p id=chd_in_display hidden></p>
+
+        <div class="row">
+            <div class="col-9 container-fluid" id="interface">
+                <!-- <div class="root_select circle_container col-md-6 col-md-offset-3 col-sm-8 col-sm-offset-2 col-xs-12> -->
+                    <p> Key = C major </p>
+                    <!-- <img class="transparent_square" src="http://i.stack.imgur.com/5Y4F4.jpg" width="2" height="2" />
+                    <div class="moon_container moon2"><button id=r0 class="root btn btn-circle btn-xl moon moon2 tonic_gp r1" data-toggle = "tooltip" title=""> C </button> </div>
+                    <div class="moon_container moon4"><button id=r2 class="root btn btn-circle btn-xl moon moon4 subdom_gp r2" data-toggle = "tooltip" title=""> D </button> </div>
+                    <div class="moon_container moon1"><button id=r4 class="root btn btn-circle btn-xl moon moon1 median_gp r3" data-toggle = "tooltip" title=""> E </button> </div>
+                    <div class="moon_container moon5"><button id=r5 class="root btn btn-circle btn-xl moon moon5 subdom_gp r4" data-toggle = "tooltip" title=""> F </button> </div>
+                    <div class="moon_container moon7"><button id=r7 class="root btn btn-circle btn-xl moon moon7 dom_gp r5" data-toggle = "tooltip" title=""> G </button> </div>
+                    <div class="moon_container moon3"><button id=r9 class="root btn btn-circle btn-xl moon moon3 tonic_gp r6" data-toggle = "tooltip" title=""> A </button> </div>
+                    <div class="moon_container moon6"><button id=r11 class="root btn btn-circle btn-xl moon moon6 dom_gp r7" data-toggle = "tooltip" title=""> B </button> </div>
+                    <script>
+                        $(document).ready(function(){
+                        $('[data-toggle="tooltip"]').tooltip();   
+                        });
+                    </script> -->
+                <!-- </div> -->
+            </div>
+
+            <!-- <div class="col-3">
+                <table class="chroma_select table table-bordered table-sm table-fixed", style="width:150px;">
+                    {% for i in range(11,-1,-1)%}
+                    <tr>
+                        <td class=bass id={{i}}></td>
+                        <td class=chroma id={{i}}>{{["Root","m2","M2","m3","M3","P4","A4/d5","P5","m6","M6","m7","M7"][i]}} </td>
+                    </tr>
+                    {% endfor %}
+                </table>
+
+            </div> -->
+
+            <div class="col-3">
+                <!-- <button id=M3 class="quick_chd btn btn-light"> major triad </button>
+                <button id=m3 class="quick_chd btn btn-light"> minor triad </button><br><br> -->
+
+                <!-- <button id=clear_chd class="quick_chd btn btn-light"> Clear chord </button> -->
+
+                <button id=add_chd class="btn btn-light"> Add new chord </button><br>
+                <button id=rep_chd class="btn btn-light"> Repeat chord </button><br><br>
+                
+                <button id=play_chd class="quick_chd btn btn-light"> Play chord </button><br><br>
+
+                <button id=play_prog class="btn btn-light"> Play progression </button><br>
+                <button id=clear_prog class="btn btn-light"> Clear progression </button><br><br>
+
+                <button id=play_prog_original class="btn btn-light"> Play original progression </button><br><br>
+
+                <div class="input-group mb-3">
+                    <div class="input-group-prepend">
+                      <div class="input-group-text" style="width:160px">
+                        <input type="checkbox" id="root_overlay" checked>  &nbsp Root overlay
+                      </div>
+                    </div>
+                    <div class="input-group-prepend">
+                      <div class="input-group-text" style="width:160px">
+                        <input type="checkbox" id="chord_overlay" >  &nbsp Chord overlay
+                      </div>
+                    </div>
+                  </div>
+
+                <form action="/swap" method="POST"> 
+                    <input type=hidden name=midi_in value={{midi}}>
+                    <input type=hidden name=chd_in value="{{chords}}">
+                    <input type=hidden id=chd_in_send name="chd">
+                    <button type="submit" class="btn btn-primary">Submit</button>
+                </form>
+                
+                <br>
+                <div id=onScreenKeyboard>
+
+                </div>
+            </div> 
+        </div>
         </div>
 
-        <div class="col-3">
-            <button id=M3 class="quick_chd btn btn-light"> major triad </button>
-            <button id=m3 class="quick_chd btn btn-light"> minor triad </button><br><br>
+        <div id="chd_back" hidden>{{chd}}</div>
+        <div id="get_prog_prob" hidden>{{url_for('get_prog_prob')}}</div>
 
-            <button id=play_chd class="quick_chd btn btn-light"> Play chord </button>
-            <button id=clear_chd class="quick_chd btn btn-light"> Clear chord </button><br><br>
-
-            <button id=add_chd class="btn btn-light"> Add new chord </button>
-            <button id=rep_chd class="btn btn-light"> Repeat chord </button><br><br>
-            
-            <button id=play_prog class="btn btn-light"> Play progression </button>
-            <button id=clear_prog class="btn btn-light"> Clear progression </button><br><br>
-
-            <form action="/swap" method="POST"> 
-                <input type=hidden name=midi_in value={{midi}}>
-                <input type=hidden name=chd_in value="{{chords}}">
-                <input type=hidden id=chd_in_send name="chd">
-                <button type="submit" class="btn btn-primary">Submit</button>
-            </form>
-        </div> 
-    </div>
-
-    <div id="get_prog_prob" hidden>{{url_for('get_prog_prob')}}</div>
-    
-    <script src="{{url_for('static', filename='main.js')}}"></script>
+        <script> 
+            var original_chd = {{chd_mat|tojson}};
+            var swapped_chd = 0;
+            {% if chd_mat_swapped %}
+            swapped_chd = {{chd_mat_swapped|tojson}};
+            {% endif %}
+        </script>
+        <script src="{{url_for('static', filename='main.js')}}"></script>
     {% endif %}
 </div>
+
 
     
 {% endblock %}

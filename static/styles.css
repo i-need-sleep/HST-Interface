@@ -141,3 +141,26 @@
     border-radius: 100%;
     pointer-events: none;
 }
+
+/* Misc ///////////////////////////////////////////////////////////////////////////////// */
+.chord_input{
+    background-color: #37aeff;
+}
+
+/* Piano Roll Overlay //////////////////////////////////////////////////////////////////// */
+.svg{
+    position: relative;
+    top: -240px;
+    width: 800px;
+    height: 240px;
+}
+
+#swapped_svg{
+    position: relative;
+    top: -480px;
+}
+
+.up{
+    position: relative;
+    top: -240px;
+}

@@ -1,6 +1,7 @@
 import os
 import random
 import json
+import datetime
 
 import torch
 import numpy as np
@@ -82,7 +83,6 @@ def simpleChd_to_chd(simple):
 # Server Setup ###################################################################################################################
 UPLOAD_FOLDER = 'static/uploads/'
 ALLOWED_EXTENSIONS = {'mid'}
-CTR = 0
 
 for filename in os.listdir(UPLOAD_FOLDER):
     file_path = os.path.join(UPLOAD_FOLDER, filename)
@@ -135,21 +135,20 @@ def upload():
 
 @app.route('/random', methods=['POST','GET'])
 def fetch_random():
-    global CTR
     melody, pr, pr_mat, ptree, chord = dataset[random.randint(0,len(dataset))]
     ptree = torch.from_numpy(ptree)
     _, notes = model.decoder.grid_to_pr_and_notes(ptree.squeeze(0).numpy().astype(int))
     out_midi = pretty_midi.PrettyMIDI()
     out_midi.instruments = [pretty_midi.Instrument(0)]
     out_midi.instruments[0].notes = notes
-    midi_path = 'static/uploads/{}.mid'.format(CTR)
+    midi_path = 'static/uploads/{}.mid'.format(str(datetime.datetime.today()).replace("-","").replace(" ","").replace(":","").replace(".",""))
     np.savez(midi_path[:-3]+'npz',pr_mat=pr_mat,chord=chord)
-    CTR += 1
     out_midi.write(midi_path)
-    return render_template('index.html', midi=midi_path[7:], chords=chd_to_str(chord))
+    return render_template('index.html', midi=midi_path[7:], chords=chd_to_str(chord), chd_mat=chord.tolist())
 
 @app.route('/swap', methods=['POST','GET'])
 def swap():
+    
     chord = json.loads(request.form['chd'])['chd']
     midi_in = request.form['midi_in']
     chord_in = request.form['chd_in']
@@ -159,27 +158,29 @@ def swap():
         for i in range(len(c[1])):
             c[1][i] = (int(c[1][i])+c[0])%12
     chord = simpleChd_to_chd(chord)
+    chd_mat_swapped = chord.tolist()
     chord_out = chd_to_str(chord)
     chord_in = chord_in[1:-1].replace("'",'').split(',')
     data = np.load('static/'+midi_in[:-3]+'npz')
     pr_mat = data['pr_mat']
-    c = data['chord']
+    c_out = data['chord']
     pr_mat = torch.from_numpy(pr_mat).float().to(device)
     chord = torch.from_numpy(chord).float().unsqueeze(0).to(device)
-    c = torch.from_numpy(c).float().unsqueeze(0).to(device)
+    c = torch.from_numpy(c_out).float().unsqueeze(0).to(device)
     ptree_out = model.swap(pr_mat, pr_mat, c, chord, fix_rhy=True, fix_chd=False)
     pr_out, notes_out = model.decoder.grid_to_pr_and_notes(ptree_out.squeeze(0))
     out_midi = pretty_midi.PrettyMIDI()
     out_midi.instruments = [pretty_midi.Instrument(0)]
     out_midi.instruments[0].notes = notes_out
-    midi_out = midi_in[:-4]+'out.mid'
+    midi_out = midi_in[:-4]+str(datetime.datetime.today()).replace("-","").replace(" ","").replace(":","").replace(".","")+".mid"
+
     out_midi.write('static/'+midi_out)
-    return render_template('index.html', midi=midi_in, midi_out=midi_out, chords=chord_in, new_chords=chord_out)
+    return render_template('index.html', midi=midi_in, midi_out=midi_out, chords=chord_in, new_chords=chord_out, chd=str(request.form["chd"]).replace("'",'"'), chd_mat=c_out.tolist(), chd_mat_swapped=chd_mat_swapped)
 
 @app.route('/get_prog_prob', methods=['GET'])
 def get_prog_prob():
     return {"ha":"llo"}
     
 if __name__ == '__main__':
-    app.run("127.0.0.1", 5000, debug = True)
+    app.run("127.0.0.1", 5000, debug = False)
     
