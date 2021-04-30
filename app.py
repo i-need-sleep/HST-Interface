@@ -8,22 +8,30 @@ import numpy as np
 import dataset as dtst
 from model import DisentangleVAE
 
+import pretty_midi
+
 from flask import Flask, render_template, request, session, url_for, redirect, flash
 from werkzeug.utils import secure_filename
 
-import pretty_midi
+import webbrowser
+
+
+SAMPLE_LEN = 16
+CHORD_LEN_QUANT = 2
+SELECT_SAMPLES_PATH = "static/select_samples/phrases"
+select_sample_folders = os.listdir(SELECT_SAMPLES_PATH)
 
 # Load things #################################################################################################################
-with open('cleaned.json') as json_file:
-    index_data = json.load(json_file)
+# with open('cleaned.json') as json_file:
+#     index_data = json.load(json_file)
 
-shift_low = -6
-shift_high = 6
-num_bar = 2
-contain_chord = True
-fns = dtst.collect_data_fns()
-dataset = dtst.wrap_dataset(fns, np.arange(len(fns)), shift_low, shift_high,
-                        num_bar=num_bar, contain_chord=contain_chord)
+# shift_low = -6
+# shift_high = 6
+# num_bar = 2
+# contain_chord = True
+# fns = dtst.collect_data_fns()
+# dataset = dtst.wrap_dataset(fns, np.arange(len(fns)), shift_low, shift_high,
+#                         num_bar=num_bar, contain_chord=contain_chord)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = DisentangleVAE.init_model(device)
@@ -100,10 +108,6 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # The Main Thing ##################################################################################################################
-@app.route('/', methods=['POST','GET'])
-def index():
-    return render_template('index.html')
-
 @app.route('/library', methods=['POST','GET'])
 def library():
     return render_template('library.html', index_data=index_data)
@@ -133,23 +137,28 @@ def upload():
         return render_template('index.html', midi='uploads/'+filename)
     return render_template('index.html')
 
-@app.route('/random', methods=['POST','GET'])
-def fetch_random():
-    melody, pr, pr_mat, ptree, chord = dataset[random.randint(0,len(dataset))]
-    ptree = torch.from_numpy(ptree)
-    _, notes = model.decoder.grid_to_pr_and_notes(ptree.squeeze(0).numpy().astype(int))
-    out_midi = pretty_midi.PrettyMIDI()
-    out_midi.instruments = [pretty_midi.Instrument(0)]
-    out_midi.instruments[0].notes = notes
-    midi_path = 'static/uploads/{}.mid'.format(str(datetime.datetime.today()).replace("-","").replace(" ","").replace(":","").replace(".",""))
-    np.savez(midi_path[:-3]+'npz',pr_mat=pr_mat,chord=chord)
-    out_midi.write(midi_path)
-    return render_template('index.html', midi=midi_path[7:], chords=chd_to_str(chord), chd_mat=chord.tolist())
+# @app.route('/', methods=['POST','GET'])
+# def fetch_random():
+#     melody, pr, pr_mat, ptree, chord = dataset[random.randint(0,len(dataset))]
+#     ptree = torch.from_numpy(ptree)
+#     _, notes = model.decoder.grid_to_pr_and_notes(ptree.squeeze(0).numpy().astype(int))
+#     out_midi = pretty_midi.PrettyMIDI()
+#     out_midi.instruments = [pretty_midi.Instrument(0)]
+#     out_midi.instruments[0].notes = notes
+#     midi_path = 'static/uploads/{}.mid'.format(str(datetime.datetime.today()).replace("-","").replace(" ","").replace(":","").replace(".",""))
+#     np.savez(midi_path[:-3]+'npz',pr_mat=pr_mat,chord=chord)
+#     out_midi.write(midi_path)
+#     return render_template('index.html', midi=midi_path[7:], chords=chd_to_str(chord), chd_mat=chord.tolist(), config={'SAMPLE_LEN':8})
 
-@app.route('/swap', methods=['POST','GET'])
+# @app.route('/get_prog_prob', methods=['GET'])
+# def get_prog_prob():
+#     return {"ha":"llo"}
+
+@app.route('/swap_in_place', methods=['POST'])
 def swap():
-    
-    chord = json.loads(request.form['chd'])['chd']
+    print(request.form)
+
+    chord = json.loads(request.form['chd'])
     midi_in = request.form['midi_in']
     chord_in = request.form['chd_in']
     for c in chord:
@@ -167,20 +176,150 @@ def swap():
     pr_mat = torch.from_numpy(pr_mat).float().to(device)
     chord = torch.from_numpy(chord).float().unsqueeze(0).to(device)
     c = torch.from_numpy(c_out).float().unsqueeze(0).to(device)
-    ptree_out = model.swap(pr_mat, pr_mat, c, chord, fix_rhy=True, fix_chd=False)
-    pr_out, notes_out = model.decoder.grid_to_pr_and_notes(ptree_out.squeeze(0))
+    print(pr_mat.shape, c.shape)
+    for i in range(SAMPLE_LEN//8):
+        pr_mat_i = pr_mat[:,32*i:32*i+32,:]
+        c_i = c[:,8*i:8*i+8,:]
+        chord_i = chord[:,8*i:8*i+8,:]
+        try:
+            ptree_out_i = model.swap(pr_mat_i, pr_mat_i, c_i, chord_i, fix_rhy=True, fix_chd=False)
+            pr_out_i, notes_out_i = model.decoder.grid_to_pr_and_notes(ptree_out_i.squeeze(0))
+            pr_out = np.concatenate((pr_out,pr_out_i), axis=0)
+            for note in notes_out_i:
+                notes_out.append(pretty_midi.Note(note.velocity, note.pitch, note.start+8*i, min([note.end+8*i,SAMPLE_LEN])))
+        except:
+            ptree_out_i = model.swap(pr_mat_i, pr_mat_i, c_i, chord_i, fix_rhy=True, fix_chd=False)
+            pr_out, notes_out = model.decoder.grid_to_pr_and_notes(ptree_out_i.squeeze(0))
+
+    for i in range(SAMPLE_LEN):
+        notes_out.append(pretty_midi.Note(1, 30, i, i+1))
     out_midi = pretty_midi.PrettyMIDI()
     out_midi.instruments = [pretty_midi.Instrument(0)]
     out_midi.instruments[0].notes = notes_out
-    midi_out = midi_in[:-4]+str(datetime.datetime.today()).replace("-","").replace(" ","").replace(":","").replace(".","")+".mid"
+    midi_out = 'static/'+midi_in[:-4]+str(datetime.datetime.today()).replace("-","").replace(" ","").replace(":","").replace(".","")+".mid"
 
-    out_midi.write('static/'+midi_out)
-    return render_template('index.html', midi=midi_in, midi_out=midi_out, chords=chord_in, new_chords=chord_out, chd=str(request.form["chd"]).replace("'",'"'), chd_mat=c_out.tolist(), chd_mat_swapped=chd_mat_swapped)
+    out_midi.write(midi_out)
+    return {"midi_out": midi_out,"chd_mat_swapped": chd_mat_swapped}   
 
-@app.route('/get_prog_prob', methods=['GET'])
-def get_prog_prob():
-    return {"ha":"llo"}
+@app.route('/resample', methods=['POST','GET'])
+def resample():
+    chord, pr_mat, midi_in_path = get_select_sample()
     
+    in_midi_notes = pretty_midi.PrettyMIDI(midi_in_path).instruments[0].notes
+
+    out_midi = pretty_midi.PrettyMIDI()
+    out_midi.instruments = [pretty_midi.Instrument(0)]
+    for note in in_midi_notes:
+        out_midi.instruments[0].notes.append(pretty_midi.Note(note.velocity, note.pitch, note.start*4/3, min([note.end*4/3,SAMPLE_LEN])))
+
+    for i in range(SAMPLE_LEN):
+        out_midi.instruments[0].notes.append(pretty_midi.Note(1, 30, i, i+1))
+    
+    midi_path = 'static/uploads/{}.mid'.format(str(datetime.datetime.today()).replace("-","").replace(" ","").replace(":","").replace(".",""))
+    np.savez(midi_path[:-3]+'npz',pr_mat=pr_mat,chord=chord)
+    out_midi.write(midi_path)
+    return {"midi": midi_path, "chords": chd_to_str(chord), "chd_mat": chord.tolist()}
+
+@app.route('/', methods=['POST','GET'])
+def first_sample():
+    chord, pr_mat, midi_in_path = get_select_sample()
+    
+    in_midi_notes = pretty_midi.PrettyMIDI(midi_in_path).instruments[0].notes
+
+    out_midi = pretty_midi.PrettyMIDI()
+    out_midi.instruments = [pretty_midi.Instrument(0)]
+    for note in in_midi_notes:
+        out_midi.instruments[0].notes.append(pretty_midi.Note(note.velocity, note.pitch, note.start*4/3, min([note.end*4/3,SAMPLE_LEN])))
+
+    for i in range(SAMPLE_LEN):
+        out_midi.instruments[0].notes.append(pretty_midi.Note(1, 30, i, i+1))
+    
+    midi_path = 'static/uploads/{}.mid'.format(str(datetime.datetime.today()).replace("-","").replace(" ","").replace(":","").replace(".",""))
+    np.savez(midi_path[:-3]+'npz',pr_mat=pr_mat,chord=chord)
+    out_midi.write(midi_path)
+
+    send = {}
+    send['midi_path'] = midi_path[7:]
+    send['chords'] = chd_to_str(chord)
+    send['chd_mat'] = chord.tolist()
+    send['SAMPLE_LEN'] = SAMPLE_LEN
+    send['CHORD_LEN_QUANT'] = CHORD_LEN_QUANT
+    return render_template('index.html', send = send)
+
+def get_select_sample():
+    SELECT_SAMPLES_PATH = "static/select_samples/phrases"
+    select_sample_folders = os.listdir(SELECT_SAMPLES_PATH)
+    folder = random.choice(select_sample_folders)
+    chord_path = "{}/{}/chord.npy".format(SELECT_SAMPLES_PATH,folder)
+    mixed_path = "{}/{}/mixed.npy".format(SELECT_SAMPLES_PATH,folder)
+    midi_path = "{}/{}/mixed.mid".format(SELECT_SAMPLES_PATH,folder)
+    chord = np.load(chord_path)
+    mixed = np.load(mixed_path)
+    mixed = mixed.reshape(1,mixed.shape[0],mixed.shape[1])
+    root = np.zeros((16,12))
+    bass = np.zeros((16,12))
+    root[[i for i in range(16)],chord[:,0].astype(int)] = 1
+    bass[[i for i in range(16)],chord[:,-1].astype(int)] = 1
+    chord = np.concatenate((root,chord[:,1:-1],bass),axis=1)
+    return chord, mixed, midi_path
+
+# Alternative Layouts
+@app.route('/layoutB', methods=['POST','GET'])
+def first_sampleB():
+    chord, pr_mat, midi_in_path = get_select_sample()
+    
+    in_midi_notes = pretty_midi.PrettyMIDI(midi_in_path).instruments[0].notes
+
+    out_midi = pretty_midi.PrettyMIDI()
+    out_midi.instruments = [pretty_midi.Instrument(0)]
+    for note in in_midi_notes:
+        out_midi.instruments[0].notes.append(pretty_midi.Note(note.velocity, note.pitch, note.start*4/3, min([note.end*4/3,SAMPLE_LEN])))
+
+    for i in range(SAMPLE_LEN):
+        out_midi.instruments[0].notes.append(pretty_midi.Note(1, 30, i, i+1))
+    
+    midi_path = 'static/uploads/{}.mid'.format(str(datetime.datetime.today()).replace("-","").replace(" ","").replace(":","").replace(".",""))
+    np.savez(midi_path[:-3]+'npz',pr_mat=pr_mat,chord=chord)
+    out_midi.write(midi_path)
+
+    send = {}
+    send['midi_path'] = midi_path[7:]
+    send['chords'] = chd_to_str(chord)
+    send['chd_mat'] = chord.tolist()
+    send['SAMPLE_LEN'] = SAMPLE_LEN
+    send['CHORD_LEN_QUANT'] = CHORD_LEN_QUANT
+    return render_template('indexB.html', send = send)
+
+@app.route('/layoutC', methods=['POST','GET'])
+def first_sampleC():
+    chord, pr_mat, midi_in_path = get_select_sample()
+    
+    in_midi_notes = pretty_midi.PrettyMIDI(midi_in_path).instruments[0].notes
+
+    out_midi = pretty_midi.PrettyMIDI()
+    out_midi.instruments = [pretty_midi.Instrument(0)]
+    for note in in_midi_notes:
+        out_midi.instruments[0].notes.append(pretty_midi.Note(note.velocity, note.pitch, note.start*4/3, min([note.end*4/3,SAMPLE_LEN])))
+
+    for i in range(SAMPLE_LEN):
+        out_midi.instruments[0].notes.append(pretty_midi.Note(1, 30, i, i+1))
+    
+    midi_path = 'static/uploads/{}.mid'.format(str(datetime.datetime.today()).replace("-","").replace(" ","").replace(":","").replace(".",""))
+    np.savez(midi_path[:-3]+'npz',pr_mat=pr_mat,chord=chord)
+    out_midi.write(midi_path)
+
+    send = {}
+    send['midi_path'] = midi_path[7:]
+    send['chords'] = chd_to_str(chord)
+    send['chd_mat'] = chord.tolist()
+    send['SAMPLE_LEN'] = SAMPLE_LEN
+    send['CHORD_LEN_QUANT'] = CHORD_LEN_QUANT
+    return render_template('indexC.html', send = send)
+
 if __name__ == '__main__':
-    app.run("127.0.0.1", 5000, debug = False)
-    
+    host = "127.0.0.2"
+    port = 5000
+    webbrowser.open("http://{}:{}/".format(host,port), new=0, autoraise=True)
+    # webbrowser.open("http://{}:{}/layoutB".format(host,port), new=0, autoraise=True)
+    # webbrowser.open("http://{}:{}/layoutC".format(host,port), new=0, autoraise=True)
+    app.run(host, port, debug = True)

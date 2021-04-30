@@ -2,10 +2,8 @@
 
 {% block head %}
 
-<!-- html MIDI player -->
-<script src="https://cdn.jsdelivr.net/combine/npm/tone@14.7.58,npm/@magenta/music@1.21.0/es6/core.js,npm/focus-visible@5,npm/html-midi-player@1.1.0"></script>
-
 <!-- Magenta -->
+<script src="https://cdn.jsdelivr.net/combine/npm/tone@14.7.58,npm/@magenta/music@1.21.0/es6/core.js,npm/focus-visible@5,npm/html-midi-player@1.1.0"></script>
 <script src="https://cdn.jsdelivr.net/npm/@magenta/music@^1.0.0"></script>
 
 <!-- Axios -->
@@ -103,6 +101,7 @@
               <th id="original_prog{{i}}" class="table_cell" style="font-weight:normal;"> {{ send["chords"][i] }} </td>
               {% endfor %}
               <th><button id=play_prog_original2 class="btn btn-light btn-sm">progression</button></th>
+              <th></th>
           </tr>
           </tbody>  
       </table>
@@ -224,16 +223,19 @@
     {% endif %}
 </div>
 
-<style>
-  .prog_table{
-    width: {{300+100*send["SAMPLE_LEN"]}}px !important;
-}
-</style>
+
 <!-- Original Player -->
       <midi-player class="up" id="player_original" src="{{url_for('static',filename=send["midi_path"])}}" sound-font visualizer="#vis"></midi-player>
       
 <!-- Altered player -->
             <midi-player sound-font visualizer="#vis_out" id="player_out" hidden></midi-player>
+
+<style>
+  .prog_table{
+    width: {{300+100*send["SAMPLE_LEN"]}}px !important;
+}
+
+</style>
 
 <svg id=original_barline class="barline_svg"></svg>
 <svg id=altered_barline class="barline_svg"></svg>
@@ -247,6 +249,6 @@
   var SAMPLE_LEN = '{{send["SAMPLE_LEN"]}}';
   var CHORD_LEN_QUANT = '{{send["CHORD_LEN_QUANT"]}}';
 </script>
-<script type="application/javascript" src="{{url_for('static', filename='main.js')}}"></script>
+<script type="application/javascript" src="{{url_for('static', filename='mainC.js')}}"></script>
     
 {% endblock %}

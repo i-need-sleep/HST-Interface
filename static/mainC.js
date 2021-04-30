@@ -1191,17 +1191,11 @@ function swap(chords, ctr){
     form_data.append('midi_in', document.getElementById('player_original').src.slice(7,100));
     form_data.append('chd_in', document.getElementById('chd_in').value);
 
-    let apply_button = document.getElementById("apply"+ctr)
-    apply_button.classList.add("btn-light")
-    apply_button.innerHTML = "loading"
-    apply_button.onclick = function(){}
-
     axios.post(swap_in_place, form_data)
         .then(response => {
-            apply_button.classList.remove("btn-light")
-            apply_button.classList.add("btn-primary")
-            apply_button.innerHTML = "apply"
-            apply_button.onclick = function(){
+            
+            document.getElementById("altered_head"+ctr).style = "text-decoration: underline; font-weight: bold;"
+            document.getElementById("altered_head"+ctr).onclick = function(){
                 if (document.getElementsByClassName("table-primary").length){
                     document.getElementsByClassName("table-primary")[0].classList.remove("table-primary")
                 }
@@ -1231,19 +1225,38 @@ function swap(chords, ctr){
         });
 }
 
-function apply_swap(midi, new_swapped_chd){
-    player_out.src = midi;
-    vis_out.src = midi;
-
-    // Update overlay
-    swapped_chd = new_swapped_chd
-
-    clear_overlay();
-    if (chord_overlay){
-        draw_chord_overlay();
+function apply_swap(midi, new_swapped_chd, play=false){
+    if (player_out.src != midi){
+        player_out.src = midi;
+        vis_out.src = midi;
+    
+        // Update overlay
+        swapped_chd = new_swapped_chd
+    
+        clear_overlay();
+        if (chord_overlay){
+            draw_chord_overlay();
+        }
+        else if (root_overlay){
+            draw_root_overlay();
+        }
+        if (play){
+            setTimeout(() => {
+            player_out.start()
+            }, 100);
+        }
     }
-    else if (root_overlay){
-        draw_root_overlay();
+    else{
+        if (play){
+            if (!player_out.playing){
+                setTimeout(() => {
+                    player_out.start()
+                    }, 100);
+            }
+            else{
+                player_out.stop()
+            }
+        }
     }
 }
 
@@ -1719,11 +1732,9 @@ function insert_row(prog, highlight){
     row.id = "altered_row"+tab_ctr
     head.innerHTML = "<div class=prog_repos> Altered "+tab_ctr+"</div>";
     head.classList.add("prog_head")
+    head.style = "font-weight: normal;"
     head.value = tab_ctr
-    head.onclick = function(){
-        active_prog = head.value
-        prog_player.start(get_prog(prog_storage[head.value-1]));
-    }
+    head.id = "altered_head"+tab_ctr
     for (let i=0; i<prog.length; i++){
         let cell = row.insertCell();
         cell.innerHTML = "<div class=prog_repos>"+prog[i]+"</div>";
@@ -1734,9 +1745,8 @@ function insert_row(prog, highlight){
             prog_player_click.start(get_prog([prog_storage[head.value-1][i],prog_storage[head.value-1][i]]));
         }
     }
-    let tail = row.insertCell();
-    tail.innerHTML = "<button id=apply"+tab_ctr+" class='btn btn-light btn-sm'> apply </button><br>";
     let tail2 = row.insertCell();
+    let tail = row.insertCell();
     tail2.innerHTML = "<button class='btn btn-light btn-sm' id=prog>progression</button><br>";
     tail2.id = "prog"+tab_ctr
     tail2.onclick = function(){
@@ -2088,13 +2098,6 @@ function place_player_original(){
 place_player_original()
 
 // Keyboard shortcuts ///////////////////////////////////////////////////////////
-// Disable button activation on keyup
-document.addEventListener('keyup', function(event){
-    if (event.key == " "){
-        event.preventDefault() 
-    }
-})
-
 document.addEventListener('keydown', function(event){ 
     if (event.key == "w" || event.key == "ArrowUp"){
         event.preventDefault() 
@@ -2139,13 +2142,13 @@ document.addEventListener('keydown', function(event){
 
 function shortcut_select_up(){
     if (active_row > 1){
-        document.getElementById("apply"+(active_row-1)).onclick()
+        document.getElementById("altered_head"+(active_row-1)).onclick()
     }
 }
 
 function shortcut_select_down(){
-    if (document.getElementById("apply"+(active_row+1))){
-        document.getElementById("apply"+(active_row+1)).onclick()
+    if (document.getElementById("altered_head"+(active_row+1))){
+        document.getElementById("altered_head"+(active_row+1)).onclick()
     }
 }
 
@@ -2209,3 +2212,12 @@ function shortcut_right(){
 $(function () {
     $('[data-toggle="popover"]').popover()
   }) 
+
+  document.getElementById("play_original").onclick = function(){
+    if (player_original.playing){
+        player_original.stop() 
+    }
+    else{
+        player_original.start()  
+    }
+  }

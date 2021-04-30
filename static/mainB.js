@@ -1200,8 +1200,19 @@ function swap(chords, ctr){
         .then(response => {
             apply_button.classList.remove("btn-light")
             apply_button.classList.add("btn-primary")
-            apply_button.innerHTML = "apply"
+            apply_button.innerHTML = "play"
             apply_button.onclick = function(){
+                if (document.getElementsByClassName("table-primary").length){
+                    document.getElementsByClassName("table-primary")[0].classList.remove("table-primary")
+                }
+                active_row = ctr
+                last_ctr = ctr
+                document.getElementById("altered_row"+ctr).classList.add("table-primary")
+                apply_swap(response.data["midi_out"],response.data["chd_mat_swapped"], play=true)
+            }
+            
+            document.getElementById("altered_head"+ctr).style = "text-decoration: underline;"
+            document.getElementById("altered_head"+ctr).onclick = function(){
                 if (document.getElementsByClassName("table-primary").length){
                     document.getElementsByClassName("table-primary")[0].classList.remove("table-primary")
                 }
@@ -1231,19 +1242,38 @@ function swap(chords, ctr){
         });
 }
 
-function apply_swap(midi, new_swapped_chd){
-    player_out.src = midi;
-    vis_out.src = midi;
-
-    // Update overlay
-    swapped_chd = new_swapped_chd
-
-    clear_overlay();
-    if (chord_overlay){
-        draw_chord_overlay();
+function apply_swap(midi, new_swapped_chd, play=false){
+    if (player_out.src != midi){
+        player_out.src = midi;
+        vis_out.src = midi;
+    
+        // Update overlay
+        swapped_chd = new_swapped_chd
+    
+        clear_overlay();
+        if (chord_overlay){
+            draw_chord_overlay();
+        }
+        else if (root_overlay){
+            draw_root_overlay();
+        }
+        if (play){
+            setTimeout(() => {
+            player_out.start()
+            }, 100);
+        }
     }
-    else if (root_overlay){
-        draw_root_overlay();
+    else{
+        if (play){
+            if (!player_out.playing){
+                setTimeout(() => {
+                    player_out.start()
+                    }, 100);
+            }
+            else{
+                player_out.stop()
+            }
+        }
     }
 }
 
@@ -1720,6 +1750,7 @@ function insert_row(prog, highlight){
     head.innerHTML = "<div class=prog_repos> Altered "+tab_ctr+"</div>";
     head.classList.add("prog_head")
     head.value = tab_ctr
+    head.id = "altered_head"+tab_ctr
     head.onclick = function(){
         active_prog = head.value
         prog_player.start(get_prog(prog_storage[head.value-1]));
@@ -2088,13 +2119,6 @@ function place_player_original(){
 place_player_original()
 
 // Keyboard shortcuts ///////////////////////////////////////////////////////////
-// Disable button activation on keyup
-document.addEventListener('keyup', function(event){
-    if (event.key == " "){
-        event.preventDefault() 
-    }
-})
-
 document.addEventListener('keydown', function(event){ 
     if (event.key == "w" || event.key == "ArrowUp"){
         event.preventDefault() 
@@ -2139,13 +2163,13 @@ document.addEventListener('keydown', function(event){
 
 function shortcut_select_up(){
     if (active_row > 1){
-        document.getElementById("apply"+(active_row-1)).onclick()
+        document.getElementById("altered_head"+(active_row-1)).onclick()
     }
 }
 
 function shortcut_select_down(){
-    if (document.getElementById("apply"+(active_row+1))){
-        document.getElementById("apply"+(active_row+1)).onclick()
+    if (document.getElementById("apply"+(active_row+1)) && document.getElementById("apply"+(active_row+1)).innerHTML=="play"){
+        document.getElementById("altered_head"+(active_row+1)).onclick()
     }
 }
 
@@ -2209,3 +2233,12 @@ function shortcut_right(){
 $(function () {
     $('[data-toggle="popover"]').popover()
   }) 
+
+  document.getElementById("play_original").onclick = function(){
+    if (player_original.playing){
+        player_original.stop() 
+    }
+    else{
+        player_original.start()  
+    }
+  }
