@@ -1,0 +1,37 @@
+To run the app:
+	Run dist/app/app 
+	Three browser windows should pop up after the model is loaded, one for each candidate layout.
+
+Entering a progression:
+	Add chord: adds a duplicate of the currently selected node, chord suggestions will be displayed for the new node.
+	Suggest chord: fetches likely extensions of the selected chord n-gram from Hooktheory (if applicable). Clicking a suggested chord adds it to the progression.
+	Clicking an already selected node calls out the chord dial for quick chroma edits.
+	Edit chord: for further editing of root/bass/chroma.
+	The currently selected path is highlighted in blue.
+	Select the end node of a complete progression and click save to save it to the progression stack.
+
+Chord table:
+	Clicking a chord cell plays the corresponding chord
+	progression: plays the entire progression (chord only)
+	
+	Layout-wise differences
+	Layout A (http://127.0.0.1:5000/):
+		Clicking the head of each row also plays the entire progression
+	Layout B (http://127.0.0.1:5000/layoutB):
+		Clicking the head of each row applies the corresponding progression
+		Play: apply and play
+	Layout C (http://127.0.0.1:5000/layoutC):
+		Same as layout B but the play buttons are replaced by a player.
+
+Keyboard shortcuts (also available under Help):
+	W/S (arrow up/down): apply the prev/next progression
+	A/D (arrow left/right): rewind/fast forward. Only applicable when the player is playing
+	R: resample
+	
+	Space (Enter): play/pause
+	hold shift: toggle progression
+	hold ctrl: toggle original
+	So space alone plays the complete altered track
+	space + shift plays the altered progression
+	space + ctrl plays the complete original track
+	space + shift + ctrl plays the original progression
