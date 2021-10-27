@@ -28,50 +28,64 @@
 {% block body %}
 
     <!-- Nav Bar -->
-<nav class="navbar navbar-expand-sm bg-light">
-  <div class="collapse navbar-collapse" id="navbarNav">
-    <ul class="navbar-nav mr-auto">
-      <li class="nav-item">
-        <button id='resample' class="btn">Resample</button><br> 
-      </li>
-      <!-- <li class="nav-item">
-        <form method=post enctype=multipart/form-data action=/upload ckass="form form-inline">
-            <div class="input-group">
-            <div class="custom-file">
-                <input type="file" class="custom-file-input" id="customFile" name=user_midi>
-                <label class="custom-file-label" for="customFile">Choose file</label>
-            </div>
-            <script>
-                $(".custom-file-input").on("change", function() {
-                  var fileName = $(this).val().split("\\").pop();
-                  $(this).siblings(".custom-file-label").addClass("selected").html(fileName);
-                });
-            </script>
-            <span class="input-group-addon"></span>
-            <input type=submit class="btn" value=Upload>
-            </div>
-        </form>
-      </li> -->
-  </ul>
-  <ul class="navbar-nav">
-      <li class="nav-item">
-        <a tabindex="0" class="btn" role="button" data-toggle="popover" data-trigger="focus" title="Help" 
-        data-content="Keyboard shortcuts: <br> 
-        <ul>
-          <li>w / ↑ : Apply the previous progression</li>
-          <li>s / ↓ : Apply the next progression</li>
-          <li>a / ← : Rewind by 1 second</li>
-          <li>d / → : Fast forward by 1 second</li>
-          <li>space / enter : Play / pause</li>
-          <li>Hold shift: Toggle progression</li>
-          <li>Hold ctrl: Toggle original</li>
-        </ul>"  data-html="true">
-          Help
-        </a><br>
-      </li>
-  </ul>
+<nav class="navbar navbar-expand-sm bg-light navbar-hover">
+  <div class="collapse navbar-collapse" id="navbarHover">
+      <ul class="navbar-nav mr-auto">   
+          <li class="nav-item dropdown">
+              <button class="dropdown-toggle btn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Browse Samples
+              </button>
+              <ul class="dropdown-menu">
+                <li id="resample">Random Phrase</li>
+                {% for song in send['songData'] %}
+                  <li><a class="dropdown-item dropdown-toggle">Song {{song}} {{send['songData'][song]['key']}}</a>
+                      <ul class="dropdown-menu">
+                        {% for segment in send['songData'][song] %}
+                          {% if segment != "key" %}
+                          <li><a class="dropdown-item phraseSelect" data-song="{{song}}" data-segment={{segment}} data-key="{{send['songData'][song]['key']}}">Segment {{segment}} {{send['songData'][song][segment]}}</a></li>
+                          {% endif %}
+                        {% endfor %}
+                      </ul>
+                  </li>
+                {% endfor %}
+              </ul>
+          </li>
+      </ul>
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <button class="btn" disabled>Phrase ID: <span id="songID">{{ send['midi_in_path'].split("_")[1][-3:] }}: {{ send['name'] }}</span> <span id="phraseID">{{send['midi_in_path'].split("_")[2][0]}}</span> | Key: <span id="songKey">{{send['key']}}</span></button></button><br> 
+          <!-- <button class="btn" v-on:click="test">test</button><br>  -->
+        </li>
+        <li class="nav-item">
+          <a tabindex="0" class="btn" role="button" data-toggle="popover" data-trigger="focus" title="Help" 
+          data-content="
+          Keyboard shortcuts: <br> 
+          Player: <br>
+          <ul>
+            <li>w / ↑ : Apply the previous progression</li>
+            <li>s / ↓ : Apply the next progression</li>
+            <li>a / ← : Rewind by 1 beat</li>
+            <li>d / → : Fast forward by 1 beat</li>
+            <li>space / enter : Play / pause</li>
+            <li>shift + play: play progression</li>
+            <li>ctrl + play: play original</li>
+            <li>shift + ctrl + play: play original progression</li>
+          </ul>
+          Chord Entry: <br>
+          <ul>
+            <li>shift + click: repeat chord</li>
+            <li>ctrl + click: suggest chord</li>
+            <li>alt + click: play chord</li>
+          </ul>
+          "  data-html="true">
+            Help
+          </a><br>
+        </li>
+    </ul>
   </div>
-</nav>
+  </nav>
+
+    
 
 
 <div class="container pt-3 pb-5" id="app">
@@ -90,15 +104,18 @@
     {% if send %}
         <!-- Visualizer: Original -->
         <div class="right">
-        <midi-visualizer src="{{url_for('static',filename=send["midi_path"])}}" type="piano-roll" id="vis" class="midi_vis"></midi-visualizer>
-        <svg class="original_svg svg" height="0px"></svg><br>
+        <midi-visualizer src="{{url_for('static',filename=send["acc_path"])}}" type="piano-roll" id="vis" class="midi_vis"></midi-visualizer>
+
+        <midi-visualizer src="static/empty.mid" type="piano-roll" id="vis_mel" class="midi_vis overlay_svg"></midi-visualizer>
+
+        <svg class="original_svg svg overlay_svg" height="0px"></svg><br>
         </div><br>
 
         <!-- Original Progression -->
         <table id="original_prog" class="table table-hover table-fixed table-striped prog_table up">
           <tbody>
           <tr>
-              <th id=play_prog_original class="prog_head">Original</th>
+              <th id=play_prog_original class="prog_head">Original <br> <span id='originalKey'>{{send['key']}}</span></th>
               {% for i in range(0,send['SAMPLE_LEN']) %}
               <th id="original_prog{{i}}" class="table_cell" style="font-weight:normal;"> {{ send["chords"][i] }} </td>
               {% endfor %}
@@ -125,7 +142,7 @@
         <!-- Visualizer: Altered -->
         <div id="swapped_player" class="right" hidden>
           <midi-visualizer type="piano-roll" id="vis_out" class="midi_vis up"></midi-visualizer>
-          <svg class="swapped_svg svg" id="swapped_svg" height="0px"></svg><br>
+          <svg class="swapped_svg svg overlay_svg" id="swapped_svg" height="0px"></svg><br>
         </div>
 
         <div id="main" class="padded_up">
@@ -148,7 +165,7 @@
                       1 node = {{send["CHORD_LEN_QUANT"]}} beats
                     </p>
                 <div id="graph">
-                  <d3-network :net-nodes="nodes" :net-links="links" :options="options" @node-click="nodeClick":link-cb="lcb"/>
+                  <d3-network :net-nodes="nodes" :net-links="links" :options="options" @node-click="nodeClick" :link-cb="lcb"/>
                   </d3-network>
                   <div class="row">
                   <!-- Root menu -->
@@ -173,6 +190,18 @@
             </div>
 
             <div class="col-3" id="controls">
+              <div class="dropdown">
+                <button class="btn btn-light dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Quick progression
+                </button>
+                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                  {% for item in send['quickProg'] %}
+                  <a class="dropdown-item quickProg" href="#">{{item}}</a>
+                  {% endfor %}
+                </div>
+              </div>
+                <br><br>
+
                 <button id=rep_chd class="btn btn-light"> Add chord </button><br>
                 <button id=play_chd class="quick_chd btn btn-light"> Play chord </button><br>
                 <button id=sug_chd class="btn btn-light"> Suggest chord </button><br>
@@ -196,12 +225,19 @@
 
                   <input type=hidden id=chd_in name=chd_in value="{{chords}}">
                   <input type=hidden id=chd_in_send name="chd">
-                  <button id=submit class="btn btn-primary">Save</button>
-                
-                <br>
-                <div id=onScreenKeyboard>
+                  <button id=submit class="btn btn-primary" disabled>Save New</button>
+                  <button id=submit_overwrite class="btn btn-primary" disabled>Save</button>
 
-                </div>
+                  <br><br>
+                  <ul>
+                    <li>shift + click: repeat chord</li>
+                    <li>ctrl + click: suggest chord</li>
+                    <li>alt + click: play chord</li>
+                  </ul>
+                  
+                <br>
+
+                
             </div> 
         </div>
         </div>
@@ -219,10 +255,10 @@
           </defs>
         </svg>
         
-
-        
     {% endif %}
 </div>
+
+<div id="note_tooltip" hidden>  </div>
 
 <style>
   .prog_table{
@@ -233,19 +269,39 @@
       <midi-player class="up" id="player_original" src="{{url_for('static',filename=send["midi_path"])}}" sound-font visualizer="#vis"></midi-player>
       
 <!-- Altered player -->
-            <midi-player sound-font visualizer="#vis_out" id="player_out" hidden></midi-player>
+      <midi-player sound-font visualizer="#vis_out" id="player_out" hidden></midi-player>
 
 <svg id=original_barline class="barline_svg"></svg>
 <svg id=altered_barline class="barline_svg"></svg>
 
+<div id="melo_acc_toggle">
+  <div class="input-group-prepend">
+    <div class="input-group-text" style="width:160px">
+      <input type="checkbox" id="mel_checkbox">  &nbsp Melody
+    </div>
+  </div>
+  <div class="input-group-prepend">
+    <div class="input-group-text" style="width:160px">
+      <input type="checkbox" id="acc_checkbox" checked>  &nbsp Accompaniment
+    </div>
+  </div>
+</div>
+
+
+
 <script type="application/javascript"> 
   var swapped_chd = 0;
 
-  var midi_path= '{{send["midi_path"]}}'
+  var midi_path= '{{send["acc_path"]}}'
+  var mixed_path= '{{send["midi_path"]}}'
+  var mel_path= '{{send["mel_path"]}}'
+  var acc_path= '{{send["acc_path"]}}'
   var chords = '{{send["chords"]}}'
   var original_chd = JSON.parse('{{send["chd_mat"]|tojson}}')
   var SAMPLE_LEN = '{{send["SAMPLE_LEN"]}}';
   var CHORD_LEN_QUANT = '{{send["CHORD_LEN_QUANT"]}}';
+  var quickProg = JSON.parse('{{send["quickProg"]|tojson}}')
+  var explore_prog = '{{url_for('explore_prog')}}'
 </script>
 <script type="application/javascript" src="{{url_for('static', filename='main.js')}}"></script>
     

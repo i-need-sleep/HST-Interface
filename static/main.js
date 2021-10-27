@@ -1,6 +1,7 @@
 // Initialize MIDI visualizer //////////////////////////////////////////////////////////////////////////////////
 const vis = document.getElementById('vis');
 const vis_out = document.getElementById('vis_out');
+const vis_mel = document. getElementById('vis_mel')
 const player_out = document.getElementById('player_out');
 const swapped_player = document.getElementById('swapped_player')
 
@@ -12,7 +13,17 @@ const cfg = {
     noteSpacing: 1
   };
 
+const cfg_mel = {
+    noteHeight: 4,
+    pixelsPerTimeStep: 100,
+    minPitch: 30,
+    maxPitch: 90,
+    noteSpacing: 1,
+    noteRGB: "255,0,0"
+}
+
 vis.config = cfg;
+vis_mel.config = cfg_mel
 if (vis_out){
     vis_out.config = cfg;
 }
@@ -32,12 +43,16 @@ const chd_in_send = document.getElementById('chd_in_send');
 var prev = 0;
 var chd_in = {'chd': []};
 
-rep_chd.onclick = rep_chd_go;
+rep_chd.onclick = () => {rep_chd_go(true)};
 submit.onclick = submit_go;
 sug_chd.onclick = search_chd;
+document.getElementById('submit_overwrite').onclick = ()=>{submit_go(replace_row = active_row)}
 
-function add_chd_go(){
+function add_chd_go(search=true){
     if (link_length() < SAMPLE_LEN/CHORD_LEN_QUANT){
+        
+        graph_clear_temp()
+
         prev_root = [0,1,1,2,2,3,4,4,5,5,6,6,7][current_root];
         let root_in = current_root;
         let chroma_in = [0];
@@ -54,7 +69,7 @@ function add_chd_go(){
         }
         
         if (JSON.stringify(prev) == JSON.stringify([root_in, chroma_in, bass_in])){
-            rep_chd_go();
+            rep_chd_go(search);
             return;
         }
         prev = [root_in, chroma_in, bass_in];
@@ -64,7 +79,6 @@ function add_chd_go(){
             last_node = find_parent_id(last_node);
         }
 
-        graph_clear_temp()
     
         for (let i=0; i<nodes_entered.length; i++){
             let node = nodes_entered[i];
@@ -73,7 +87,7 @@ function add_chd_go(){
         }
         nodes_entered.push(new node_entered(0,200,current_chord));
         
-        let node = {id: nodes.length, name: current_chord, chord: prev, chord_symbol:find_node(last_node).chord_symbol,  _size: 45, svgSym: nodeIcon}
+        let node = {id: nodes.length, name: current_chord, chord: prev, inner_selected: inner_selected, chord_symbol:find_node(last_node).chord_symbol,  _size: 45, svgSym: nodeIcon}
         nodes.push(node)
 
         if (nodes.length>1){
@@ -86,11 +100,14 @@ function add_chd_go(){
             
         }
         nodeClick(NaN,node)
-        search_chd();
+        if (search){
+            search_chd();
+        }
+        
     }
 }
 
-function rep_chd_go(){
+function rep_chd_go(search=true){
     if (prev != 0 && link_length()<SAMPLE_LEN/CHORD_LEN_QUANT){
         chd_in_send.value = JSON.stringify(chd_in);
 
@@ -106,7 +123,7 @@ function rep_chd_go(){
         }
         graph_clear_temp()
         last_node_node = find_last_node();
-        let node = {id: nodes.length, name: last_node_node.name, chord: last_node_node.chord, _size: 30, small: true, svgSym: nodeIcon}
+        let node = {id: nodes.length, name: last_node_node.name, chord: last_node_node.chord, inner_selected:last_node_node.inner_selected, outer_selected:last_node_node.outer_selected, _size: 30, small: true, svgSym: nodeIcon}
         if (node.name == " "){
             node.name = last_node_node.chord_symbol;
         }
@@ -120,8 +137,14 @@ function rep_chd_go(){
             links.push(link)
             
         }
+        
         nodeClick(NaN,node)
-        search_chd();
+        
+        
+        if(search){
+            search_chd();
+        }
+        
     }
 }
 
@@ -185,6 +208,7 @@ function search_chd(){
             }
         }
         let prog_str = prog.join(",");
+
         axios.get(chord_prog_entry+"?cp="+prog_str, config)
             .then(response => {
                 update_ctr --;
@@ -678,6 +702,10 @@ const octave_center = 48;
 chd_player = new mm.SoundFontPlayer('https://storage.googleapis.com/magentadata/js/soundfonts/sgm_plus');
 
 document.getElementById("play_chd").onclick = function(){
+    play_chd_click()
+}
+
+function play_chd_click(){
     let chd_mat = get_chd_mats()[0]
     chd_player.start(get_prog([chd_mat[chd_mat.length-1],chd_mat[chd_mat.length-1]]));
 }
@@ -1033,13 +1061,28 @@ function clear_graph(){
     while (links.length>0){
         links.pop()
     }
+    current_root = NaN
+    inner_selected = NaN
+    outer_selected = NaN
+    prev = NaN
 }
 
 function nodeClick(event,node){
     
     if (node._cssClass == "selected"){
         graph_clear_temp()
+        if (event.ctrlKey){
+            search_chd()
+            return
+        }
+        if (event.altKey){
+            play_chd_click()
+            return
+        }
         draw_dial(node)
+        if (event.shiftKey){
+            rep_chd_go()
+        }
     }
 
     else if (node.temp){
@@ -1059,31 +1102,57 @@ function nodeClick(event,node){
     else if (node._cssClass != "dial"){
         resize_nodes()
         node._cssClass = "selected";
-    last_node = node.id;
+        last_node = node.id;
 
-    let cur_node = last_node;
-    // Highlight Path
-    while (true) {
-        let seek = false;
-        for (let i=0; i<links.length; i++){
-            if (links[i].tid.id == cur_node){
-                cur_node = links[i].sid;
-                links[i]._color = "#347dff"
-                links[i]._svgAttrs['marker-end'] = 'url(#m-end-highlight)';
-                find_node(cur_node)._cssClass = "highlighted"
-                seek = true;
+        
+        if (event.ctrlKey){
+            search_chd()
+            return
+        }
+        if (event.altKey){
+            play_chd_click()
+            return
+        }
+
+        let cur_node = last_node;
+        // Highlight Path
+        while (true) {
+            let seek = false;
+            for (let i=0; i<links.length; i++){
+                if (links[i].tid.id == cur_node){
+                    cur_node = links[i].sid;
+                    links[i]._color = "#347dff"
+                    links[i]._svgAttrs['marker-end'] = 'url(#m-end-highlight)';
+                    find_node(cur_node)._cssClass = "highlighted"
+                    seek = true;
+                    break;
+                }
+            }
+            if (! seek){
                 break;
             }
+        
         }
-        if (! seek){
-            break;
+
+        // Toggle save button status
+        if (link_length() == SAMPLE_LEN/CHORD_LEN_QUANT && tab_ctr < 9){
+            document.getElementById("submit").disabled = false
+            if (active_row > -1){
+                document.getElementById('submit_overwrite').disabled = false
+            }
         }
-    
-    }
-    
-    // Temporary fix forcing an update of the nodes' coloring
-    links.push({tid:0, sid: 0, _svgAttrs:{}})
-    links.pop()    
+        else{
+            document.getElementById("submit").disabled = true
+            document.getElementById('submit_overwrite').disabled = true
+        }
+        
+        // Temporary fix forcing an update of the nodes' coloring
+        links.push({tid:0, sid: 0, _svgAttrs:{}})
+        links.pop()
+        
+        if (event.shiftKey){
+            rep_chd_go()
+        }
     }
 
     
@@ -1093,6 +1162,7 @@ function nodeClick(event,node){
     if (! node.temp){
         update_ctr = -1;
     }
+    graph_clear_temp()
   }
 
 function link_length(){
@@ -1153,7 +1223,7 @@ function get_chd_mats(){
         return [chd_mats.reverse(), chd_symbols.reverse()]
 }
 
-function submit_go(){
+function submit_go(replace_row = -1){
     if (link_length() == SAMPLE_LEN/CHORD_LEN_QUANT && tab_ctr < 9){
 
         // Chord symbol display
@@ -1171,24 +1241,33 @@ function submit_go(){
                 tab_prog.push(symbols[i]+chord_to_roman(chords[i]));
             }
         }
-        insert_row(tab_prog, tab_ctr == 1)
-        prog_storage.push(chords);
 
-        //  Fetch swapped MIDI
-        swap(chords, tab_ctr);
+        if (!(replace_row > -1)){
+            insert_row(tab_prog, tab_ctr == 1, nodes, links)
+            prog_storage.push(chords);
+            //  Fetch swapped MIDI
+            swap(chords, tab_ctr);
+        }
+        else {
+            insert_row(tab_prog, tab_ctr == 1, nodes, links, replace = true)
+            prog_storage[active_row-1] = chords
+            swap(chords, tab_ctr, replace = true);
+        }
+        
     }
 }
 
 var last_ctr = 1
 var swapped_chd
-function swap(chords, ctr){
+function swap(chords, ctr, replace = false){
     ctr--;
-    console.log(chords)
     const swap_in_place = document.getElementById("swap_in_place").innerHTML;
     var form_data = new FormData();
 
     form_data.append('chd', JSON.stringify(chords));
-    form_data.append('midi_in', document.getElementById('player_original').src.slice(7,100));
+    form_data.append('mixed_in', mixed_path.slice(7,100));
+    form_data.append('mel_in', mel_path.slice(7,100));
+    form_data.append('acc_in', acc_path.slice(7,100));
     form_data.append('chd_in', document.getElementById('chd_in').value);
 
     let apply_button = document.getElementById("apply"+ctr)
@@ -1208,7 +1287,8 @@ function swap(chords, ctr){
                 active_row = ctr
                 last_ctr = ctr
                 document.getElementById("altered_row"+ctr).classList.add("table-primary")
-                apply_swap(response.data["midi_out"],response.data["chd_mat_swapped"])
+                apply_swap(response.data["chd_mat_swapped"],response.data["mixed_out"],response.data["mel_out"],response.data["acc_out"])
+                copy_to_graph(ctr)
             }
             if ((first_altered_apply == 0 && ctr==last_ctr)){
                 first_altered_apply = 1
@@ -1223,15 +1303,38 @@ function swap(chords, ctr){
                 }
                 active_row = ctr
                 document.getElementById("altered_row"+ctr).classList.add("table-primary")
-                apply_swap(response.data["midi_out"],response.data["chd_mat_swapped"])
+                apply_swap(response.data["chd_mat_swapped"],response.data["mixed_out"],response.data["mel_out"],response.data["acc_out"])
+                
+                if (link_length() == SAMPLE_LEN/CHORD_LEN_QUANT && tab_ctr < 9){
+                    if (active_row > -1){
+                        document.getElementById('submit_overwrite').disabled = false
+                    }
+                }
+            }
+            if (replace) {
+                apply_button.onclick()
             }
         setTimeout(() => {
             draw_barlines_altered()
         }, 100);
-        });
+        setTimeout(() => {
+            draw_barlines_altered()
+        }, 300);
+        })
+        
 }
 
-function apply_swap(midi, new_swapped_chd){
+function apply_swap(new_swapped_chd, mixed, mel, acc){
+    if (mel_toggle && acc_toggle){
+        midi = mixed
+    }
+    else if (mel_toggle){
+        midi = mel
+    }
+    else{
+        midi = acc
+    }
+
     player_out.src = midi;
     vis_out.src = midi;
 
@@ -1245,6 +1348,7 @@ function apply_swap(midi, new_swapped_chd){
     else if (root_overlay){
         draw_root_overlay();
     }
+    setup_notes()
 }
 
 function node_is_end(id){
@@ -1258,7 +1362,7 @@ function node_is_end(id){
 
 function graph_suggest_chord(chord){
     if (node_is_end(last_node) && link_length()<SAMPLE_LEN/CHORD_LEN_QUANT && !dial && ["C","Dm","E","F","G",'Am','B'][chord.chord_ID-1]){
-        let node = {id: nodes.length, name: ["C","Dm","E","F","G",'Am','B'][chord.chord_ID-1]+" ("+chord.chord_HTML+")"+" ("+chord.probability+"}", chord: prev, _size: temp_node_size, temp:true}
+        let node = {id: nodes.length, name: ["C","Dm","E","F","G",'Am','B'][chord.chord_ID-1]+" ("+chord.chord_HTML+")"+" ("+chord.probability+")", chord: prev, _size: temp_node_size, temp:true, _cssClass:'temp', _labelClass:"temp"}
         let r = chord.chord_ID-1;
         if (r == 2 || r == 6){
             r = [0,2,4,5,7,9,11][r]
@@ -1270,7 +1374,7 @@ function graph_suggest_chord(chord){
         }
         nodes.push(node)
         if (nodes.length>1){
-            links.push({tid:nodes[nodes.length-1], sid: last_node, _svgAttrs:{}})
+            links.push({tid:nodes[nodes.length-1], sid: last_node, _svgAttrs:{},_color:"#be385e9d"})
         }
     }
 }
@@ -1325,6 +1429,8 @@ function find_child_ids(id){
 }
 
 function resize_nodes(){
+    document.getElementById("submit").disabled = true
+    document.getElementById('submit_overwrite').disabled = true
     dial = false;
     document.getElementById("root_select").hidden = true
     document.getElementById("chroma_select").hidden = true
@@ -1333,6 +1439,7 @@ function resize_nodes(){
         nodes[i]._cssClass = "";
         if (nodes[i].temp){
             nodes[i]._size = temp_node_size;
+            nodes[i]._cssClass = "temp"
         }
         else if (nodes[i].small){
             nodes[i]._size = smaller_node_size
@@ -1346,8 +1453,12 @@ function resize_nodes(){
     }
     
     for (let i=0; i<links.length; i++){
-        links[i]._color = "rgba(18,120,98,.7)"
-        links[i]._svgAttrs['marker-end'] = 'url(#m-end)';
+        if (links[i]._color == "#347dff"){
+            links[i]._color = "rgba(18,120,98,.7)"
+        }
+        if (links[i]._color != "#be385e9d"){
+            links[i]._svgAttrs['marker-end'] = 'url(#m-end)';
+        }
     }
 }
 
@@ -1382,7 +1493,7 @@ function draw_dial(node){
             g.append("path")
                 .attr("d", arc)
                 .attr("id", 'outer_path'+i)
-                .on("click", outer_on_click(i, node))
+                .attr("class", "outer_path")
                 .on("click", function(e){outer_on_click(i, node)})
             
             g.append("text") 
@@ -1411,7 +1522,7 @@ function draw_dial(node){
             g.append("path")
                 .attr("d", arc)
                 .attr("id", 'outer_path'+i)
-                .on("click", outer_on_click(i, node))
+                .attr("class", "outer_path")
                 .on("click", function(e){outer_on_click(i, node)})
             
             g.append("text") 
@@ -1446,6 +1557,7 @@ function draw_dial(node){
             g.append("path")
                 .attr("d", arc)
                 .attr("id", 'inner_path'+i)
+                .attr("class", "inner_path")
                 .on("click", function(e){inner_on_click(i, node)})
 
             g.append("text") 
@@ -1474,6 +1586,7 @@ function draw_dial(node){
             g.append("path")
                 .attr("d", arc)
                 .attr("id", 'inner_path'+i)
+                .attr("class", "inner_path")
                 .on("click", function(e){inner_on_click(i, node)})
 
             g.append("text") 
@@ -1495,7 +1608,15 @@ function draw_dial(node){
         }
     }
 
-    g.append('circle').attr('x',0).attr('y',0).attr('r',dial_r_center)
+    g.append('circle')
+    .attr('x',0)
+    .attr('y',0)
+    .attr('r',dial_r_center)
+    .on('click', resize_nodes)
+    .on("contextmenu", function (e) {
+        e.preventDefault();
+        rep_chd_go()
+    });
 
     g.append("text")      
         .attr("dy",0.5)       
@@ -1506,14 +1627,25 @@ function draw_dial(node){
         .style("font-size", "3px")
         .style("user-select", "none")
         .attr("id","central_text")
-        .text(node.name)
+        .text(node.chord_symbol)
+        .on('click', resize_nodes)
+        .on("contextmenu", function (e) {
+            e.preventDefault();
+            rep_chd_go()
+        });
 
-    outer_on_click(7, node)
+    if (node.inner_selected > -1){
+        inner_on_click(node.inner_selected, node)
+    }
+    if (node.outer_selected > -1){
+        d3.selectAll("#outer_path"+node.outer_selected).classed("path_active", true)
+    }
     d3.selectAll(".dial").raise()
 }
 
 function inner_on_click(i, node){
-    inner_selected = i;
+    inner_selected = i
+    node.inner_selected =  i
 
     if(i == 0){
         d3.selectAll("#outer_text3").text("b11")
@@ -1522,16 +1654,27 @@ function inner_on_click(i, node){
         d3.selectAll("#outer_text3").text("#9")
     }
 
+
     node.chord_symbol = get_chord_symbol();
     node.chord = update_chord(node)
+
+    
+    d3.selectAll(".inner_path").classed("path_active", false)
+    d3.selectAll("#inner_path"+i).classed("path_active", true)
 }
 
 function outer_on_click(i, node){
+    d3.selectAll(".outer_path").classed("path_active", false)
+
     if (outer_selected == i){
-        outer_selected = undefined;
+        outer_selected = undefined
+        node.outer_selected =  undefined
+        d3.selectAll("#outer_path"+i).classed("path_active", false)
     }
     else{
         outer_selected = i;
+        node.outer_selected =  i
+        d3.selectAll("#outer_path"+i).classed("path_active", true)
     }
     node.chord_symbol = get_chord_symbol();
     node.chord = update_chord(node)
@@ -1697,7 +1840,7 @@ function init_graph(){
     inner_selected = 5;
     root_selected = 0;
     prev = [0,[0,4,7],0]
-    let node = {id: nodes.length, name: "C", chord: prev, _size: 45, svgSym: nodeIcon}
+    let node = {id: nodes.length, name: "C", inner_selected:5, chord: prev, _size: 45, svgSym: nodeIcon}
     nodes.push(node)
     nodeClick(0, node)
 }
@@ -1712,9 +1855,17 @@ var tab_ctr = 1;
 const prog_table = document.getElementById('saved_prog');
 var prog_storage = [];
 
-function insert_row(prog, highlight){
+function insert_row(prog, highlight, node_save, link_save, replace = false){
     prog_table.hidden = false;
-    let row = prog_table.insertRow();
+    let row
+    if (! replace){
+        row = prog_table.insertRow()
+    }
+    else {
+        prog_table.deleteRow(active_row-1)
+        row = prog_table.insertRow(active_row-1)
+        tab_ctr --
+    }
     let head = row.insertCell();
     row.id = "altered_row"+tab_ctr
     head.innerHTML = "<div class=prog_repos> Altered "+tab_ctr+"</div>";
@@ -1735,13 +1886,37 @@ function insert_row(prog, highlight){
         }
     }
     let tail = row.insertCell();
-    tail.innerHTML = "<button id=apply"+tab_ctr+" class='btn btn-light btn-sm'> apply </button><br>";
+    tail.classList.add('tail')
+    tail.innerHTML = "<button id=apply"+tab_ctr+" class='btn btn-light btn-sm'> apply </button><br>"
+    node_save = node_save.slice()
+    link_save = link_save.slice()
+    if (! replace){
+        graph_hist.push([node_save, link_save])
+    }
+    else{
+        graph_hist[active_row-1] = [node_save, link_save]
+    }
+   
+
     let tail2 = row.insertCell();
+    tail2.classList.add('tail')
     tail2.innerHTML = "<button class='btn btn-light btn-sm' id=prog>progression</button><br>";
     tail2.id = "prog"+tab_ctr
     tail2.onclick = function(){
         active_prog = head.value
         prog_player.start(get_prog(prog_storage[head.value-1]));
+    }
+    let tail3 = row.insertCell();
+    tail3.classList.add('tail')
+    tail3.innerHTML = "<button class='btn btn-light btn-sm' id=prog>exlpore</button><br>";
+    tail3.id = "prog"+tab_ctr
+    tail3.onclick = function(){
+        var form_data = new FormData();
+
+        form_data.append('chd_str', JSON.stringify(prog));
+        form_data.append('chd_mat', JSON.stringify(prog_storage[head.value-1]));
+
+        axios.post(explore_prog, form_data)
     }
     tab_ctr ++;
     if (highlight){
@@ -1756,30 +1931,6 @@ function insert_row(prog, highlight){
     }
     
 }
-
-// function save_go(){
-//     if (link_length() == SAMPLE_LEN/CHORD_LEN_QUANT){
-
-//         // Chord symbol display
-//         let chord_mats = get_chd_mats()
-//         let chords = chord_mats[0];
-//         let symbols = chord_mats[1];
-//         let tab_prog=[]
-//         chords = scale_prog(chords)
-//         symbols = scale_prog(symbols)
-//         for (let i=0; i<chords.length; i++){
-//             if (i>0 && symbols[i]==symbols[i-1]){
-//                 tab_prog.push('')
-//             }
-//             else{
-//                 tab_prog.push(symbols[i]+chord_to_roman(chords[i]));
-//             }
-//         }
-//         insert_row(tab_prog, false)
-//         prog_storage.push(chords);
-//     }
-// }
-// document.getElementById('save').onclick = save_go;
 
 function scale_prog(chords){
     out = []
@@ -1827,6 +1978,18 @@ function resample(){
                 let midi = data["midi"]
                 let chords = data["chords"]
                 let chd_mat = data["chd_mat"]
+                let midi_in_path = data["midi_in_path"]
+                let Name = data['name']
+                let key = data['key']
+                
+                mixed_path = data["midi"]
+                mel_path = data["mel_path"]
+                acc_path = data["acc_path"]
+
+                document.getElementById('songID').innerHTML = midi_in_path.split('_')[1].slice(-3) + ": " + Name
+                document.getElementById('phraseID').innerHTML = midi_in_path.split('_')[2].slice(0,1)
+                document.getElementById('songKey').innerHTML = key
+                document.getElementById('originalKey').innerHTML = key
 
                 original_chd = chd_mat;
                 
@@ -1850,10 +2013,6 @@ function resample(){
                         prog_player_click.start(get_prog(chords));}
                 }
 
-                // Update midi player
-                document.getElementById("player_original").src = midi;
-                vis.src = midi;
-
                 // Update overlay
                 clear_overlay();
                 if (chord_overlay){
@@ -1868,7 +2027,11 @@ function resample(){
                 for (let i=0; i<prog_storage.length;i++){
                     swap(prog_storage[i],i+2)
                 }
+                setTimeout(() => {
+                    draw_barlines_original()
+                }, 100);
 
+                update_midi_path()
         });
 }
 
@@ -1937,7 +2100,7 @@ let original_callback = function(mutationsList, observer) {
 let original_observer = new MutationObserver(original_callback);
 original_observer.observe(original_controls, mutationObserver_config);
 
-var active_row = 1
+var active_row = -1
 // Altered
 function init_altered_highlighting(){
     let altered_timer = document.getElementById("player_out").shadowRoot.querySelector(".current-time")
@@ -2012,7 +2175,21 @@ function draw_barlines_original(){
 }
 setTimeout(() => {
     draw_barlines_original()
+    place_player_original()
+    place_melo_acc_toggle()
 }, 200);
+
+setTimeout(() => {
+    draw_barlines_original()
+    place_player_original()
+    place_melo_acc_toggle()
+}, 1000);
+
+setTimeout(() => {
+    draw_barlines_original()
+    place_player_original()
+    place_melo_acc_toggle()
+}, 3000);
 
 function draw_barlines_altered(){
     if (document.getElementById("time_altered1") && document.getElementById("altered"+(tab_ctr-1)+"_1")){
@@ -2045,6 +2222,7 @@ window.onresize = function(){
         draw_barlines_altered()
         place_player()
         place_player_original()
+        place_melo_acc_toggle()
     },200)
 }
 
@@ -2062,8 +2240,8 @@ function place_player(){
     
         d3.select("#player_out")
         .style("position","absolute")
-        .style("left",l2-20+"px")
-        .style("top", b-60+"px")
+        .style("left",l2+"px")
+        .style("top", (t+2*b)/3+"px")
         .style("-webkit-transform","scale(0.65)")
         .raise()
     }
@@ -2073,19 +2251,36 @@ function place_player_original(){
     let top_rect = document.getElementById("time16").getBoundingClientRect();
     let bottom_rect = document.getElementById("original_prog15").getBoundingClientRect();
 
+    let l2 = top_rect.right + window.pageXOffset || document.documentElement.scrollLeft
+    let t = top_rect.top + window.pageYOffset || document.documentElement.scrollTop
+    let b = bottom_rect.bottom + window.pageYOffset || document.documentElement.scrollTop
+    
+    d3.select("#player_original")
+    .style("-webkit-transform","scale(0.65)")
+    .style("position","absolute")
+    .style("left",l2+"px")
+    .style("top", (t+1.5*b)/2.5+"px")
+    .raise()
+}
+place_player_original()
+
+function place_melo_acc_toggle(){
+    let top_rect = document.getElementById("time16").getBoundingClientRect();
+    let bottom_rect = document.getElementById("original_prog15").getBoundingClientRect();
+
     let l1 = top_rect.left + window.pageXOffset || document.documentElement.scrollLeft
     let l2 = top_rect.right + window.pageXOffset || document.documentElement.scrollLeft
     let t = top_rect.top + window.pageYOffset || document.documentElement.scrollTop
     let b = bottom_rect.bottom + window.pageYOffset || document.documentElement.scrollTop
-
-    d3.select("#player_original")
-    .style("position","absolute")
-    .style("left",l2-20+"px")
-    .style("top", b+60+"px")
+    
+    d3.select("#melo_acc_toggle")
     .style("-webkit-transform","scale(0.65)")
+    .style("position","absolute")
+    .style("left",l2+0.5*(l2-l1)+"px")
+    .style("top", (1.5*t+b)/2.5+"px")
     .raise()
 }
-place_player_original()
+place_melo_acc_toggle()
 
 // Keyboard shortcuts ///////////////////////////////////////////////////////////
 // Disable button activation on keyup
@@ -2209,3 +2404,233 @@ function shortcut_right(){
 $(function () {
     $('[data-toggle="popover"]').popover()
   }) 
+
+// Quick Chords /////////////////////////////////////////////////////////////////
+function quickProg_init(){
+    let progs = document.getElementsByClassName('quickProg')
+    for (let i=0; i<progs.length; i++){
+        let prog_button = progs[i]
+        let prog_name = prog_button.innerHTML
+        let prog_data = quickProg[prog_name]
+
+        prog_button.onclick = function (){
+            clear_graph()
+            for (let j=0 ; j<prog_data.length; j++){
+                current_root = pitches.indexOf(prog_data[j][0])
+                inner_selected = inner_text.indexOf(prog_data[j][1])
+                outer_selected = NaN;
+                get_chord_symbol();
+                get_masks();
+                add_chd_go(false)
+            }
+        }
+    }
+}
+quickProg_init()
+
+// Phrase Selection Menu ///////////////////////////////////////////////////////////////
+function phraseSelect_init(){
+    let phrases = document.getElementsByClassName('phraseSelect')
+    for (let i=0; i<phrases.length; i++){
+        let phrase = phrases[i]
+        let song = phrase.dataset.song
+        let segment = phrase.dataset.segment
+        let key = phrase.dataset.key
+        phrase.onclick = function(){
+            document.getElementById('songID').innerHTML = song
+            document.getElementById('phraseID').innerHTML = segment
+            document.getElementById('songKey').innerHTML = key
+            document.getElementById('originalKey').innerHTML = key
+            const resample_url = document.getElementById("resample_url").innerHTML;
+            let form_data = new FormData();
+
+            form_data.append('song', song);
+            form_data.append('segment', segment);
+            axios.post(resample_url, form_data)
+            .then(response => {
+                let data = response.data
+                let midi = data["midi"]
+                mixed_path = data["midi"]
+                mel_path = data["mel_path"]
+                acc_path = data["acc_path"]
+                let chords = data["chords"]
+                let chd_mat = data["chd_mat"]
+
+                original_chd = chd_mat;
+                
+                // Update prog table
+                for (let i=0; i<SAMPLE_LEN; i++){
+                    let cell = document.getElementById("original_prog"+i)
+                    cell.innerHTML = chords[i]
+                    cell.onclick = function(){
+                        let chd = original_chd[i];
+                        let root = chd.slice(0,12).indexOf(1);
+                        let bass = chd.slice(24,36).indexOf(1);
+                        let chroma = chd.slice(12,24);
+                        let chroma_out = [];
+                        for (let j=0; j<chroma.length; j++){
+                            if (chroma[j] == 1){
+                                chroma_out.push((j-root+12)%12)
+                            }
+                        }
+                        let chords = [[root, chroma_out, bass],[root, chroma_out, bass]]
+                        active_chord_cell = cell
+                        prog_player_click.start(get_prog(chords));}
+                }
+
+                // Update overlay
+                clear_overlay();
+                if (chord_overlay){
+                    draw_chord_overlay();
+                }
+                else if (root_overlay){
+                    draw_root_overlay();
+                }
+                
+                // Updated swapped midi
+                first_altered_apply = 0
+                for (let i=0; i<prog_storage.length;i++){
+                    swap(prog_storage[i],i+2)
+                }
+                setTimeout(() => {
+                    draw_barlines_original()
+                }, 100);
+
+                update_midi_path()
+
+        });
+        }
+    }
+}
+phraseSelect_init()
+
+// Melody/Accompaniment Toggle ////////////////////////////////////////////////////////
+var mel_toggle = false
+var acc_toggle = true
+
+document.getElementById("mel_checkbox").onclick = function(){
+    mel_toggle = !mel_toggle
+    if (! mel_toggle && ! acc_toggle){
+        // When the user tries to uncheck the only checked box, make the other box checked
+        document.getElementById("acc_checkbox").checked = true
+        acc_toggle = true
+    }
+    update_midi_path()
+}
+
+document.getElementById("acc_checkbox").onclick = function(){
+    acc_toggle = !acc_toggle
+    if (! mel_toggle && ! acc_toggle){
+        document.getElementById("mel_checkbox").checked = true
+        mel_toggle = true
+    }
+    update_midi_path()
+}
+
+function update_midi_path(){
+    // Update the active midi_path
+    midi_path = "static/"
+    vis_mel.src = "static/empty.mid"
+    if (mel_toggle && acc_toggle){
+        vis_mel.src = "static/"+mel_path
+        midi_path += mixed_path
+    }
+    else if (mel_toggle){
+        midi_path += mel_path
+    }
+    else {
+        midi_path += acc_path
+    }
+
+    // Update the original visualiser and player
+    vis.src = midi_path
+    document.getElementById("player_original").src = midi_path;
+    try{
+        document.getElementById("apply"+active_row).onclick()
+    }
+    catch (error){}
+
+    setup_notes()
+    
+}
+update_midi_path()
+
+// Copy from table to graph ////////////////////////////
+var graph_hist = []
+function copy_to_graph(index){
+    index -= 1
+    clear_graph()
+    for (let i=0; i<graph_hist[index][0].length; i++){
+        nodes.push(graph_hist[index][0][i])
+    }
+    for (let j=0; j<graph_hist[index][1].length; j++){
+        links.push(graph_hist[index][1][j])
+    }
+    resize_nodes()
+    nodeClick(0,nodes[nodes.length-1])
+}
+
+// Hover on notes for pitch tooltips, click to listen to the note
+
+function pitch_to_str(pit){
+    let oct = (pit - pit%12) / 12 
+    note = ['C','C#/Db','D','D#/Eb','E','F','F#/Gb','G','G#/Ab','A','A#/Bb','B'][pit % 12]
+    return note + oct
+}
+function notes_clear_highlight(){
+    let highlighted_notes = document.getElementsByClassName("note_highlight")
+    for (let i=0; i<highlighted_notes.length; i++){
+        highlighted_notes[i].classList.remove("note_highlight")
+    }
+}
+function setup_notes(){
+    function setup_notes_go(){
+        rects = document.querySelectorAll("rect")
+        for (let i=0; i<rects.length; i++){
+            let rect = rects[i]
+            if (parseInt(rect.dataset.pitch) > 30){
+                
+                rect.addEventListener("mouseenter", function( event ) {
+                    notes_clear_highlight()
+                    rect.classList.add("note_highlight")
+
+                    let boundingRect = rect.getBoundingClientRect()  
+
+                    let tooltip = document.getElementById("note_tooltip")
+                    tooltip.hidden = false
+                    tooltip.dataset.pitch = rect.dataset.pitch
+                    tooltip.innerHTML = pitch_to_str(rect.dataset.pitch)
+                    tooltip.style.top = (boundingRect.top + window.pageYOffset || document.documentElement.scrollTop)-23+'px'
+                    tooltip.style.left = (boundingRect.left + window.pageXOffset || document.documentElement.scrollLeft)+'px'
+                    
+                })
+            }
+        }
+    }
+    setTimeout(() => {
+        setup_notes_go()
+    }, 500);
+    setTimeout(() => {
+        setup_notes_go()
+    }, 3000);
+    
+}
+
+vis.addEventListener("mouseleave", function( event ) {
+    document.getElementById("note_tooltip").hidden = true
+    document.getElementById("note_tooltip").dataset.pitch = 0
+    notes_clear_highlight()
+})
+vis.onclick = function(){
+    pitch = document.getElementById("note_tooltip").dataset.pitch
+    if (pitch > 30){
+        prog_player.stop()
+        prog_player.start({notes:[{pitch: pitch, start:0, end:2}], totalTime: 2})
+    }
+}
+vis_out.addEventListener("mouseleave", function( event ) {
+    document.getElementById("note_tooltip").hidden = true
+    document.getElementById("note_tooltip").dataset.pitch = 0
+    notes_clear_highlight()
+})
+vis_out.onclick = vis.onclick
