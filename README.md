@@ -1,3 +1,3 @@
 To run:  
-Copy the model (checkpoint)[https://drive.google.com/file/d/117_wyTjwCxeRN29WovktiaVmWGuefxyS/view?usp=sharing] to /result/models/disvae-nozoth_epoch.pt 
+Copy the model checkpoints to results/models and ptvae_model. See the placeholder files for links.
 Run App.py  
