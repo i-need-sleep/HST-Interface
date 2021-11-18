@@ -4,4 +4,7 @@ data
 HST dist
 Resources
 
-result.models/*.pt
+result/models/*.pt
+
+ptvae_model/*.pt
+ptvae_model/*.zip
