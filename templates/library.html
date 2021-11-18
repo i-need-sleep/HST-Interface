@@ -1,0 +1,30 @@
+{% extends 'base.html'%}
+
+{% block head %}
+<title> Library </title>
+{% endblock%}
+
+{% block body %}
+<button onclick = "window.location.href='/';">Back</button><br> 
+
+<table>
+    <tr>
+        <th>Title</th>
+        <th>Artist</th>
+        <th></th>
+    </tr>
+    {% for row in index_data %}
+    {% if row['name'] != 'nan' %}
+    <tr>
+        <td> {{ row['name'] }} </td>
+        <td> {{ row['artist'] }} </td>
+        <td> 
+            <form action="/loadFromLibrary" method="POST">
+                <button type="submit" name="select" value="{{row}}">select</button>
+            </form> 
+        </td>
+    {% endif %}
+    {% endfor %}
+</table> 
+
+{% endblock%}

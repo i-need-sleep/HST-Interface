@@ -1,0 +1,308 @@
+{% extends 'base.html'%}
+
+{% block head %}
+
+<!-- html MIDI player -->
+<script src="https://cdn.jsdelivr.net/combine/npm/tone@14.7.58,npm/@magenta/music@1.21.0/es6/core.js,npm/focus-visible@5,npm/html-midi-player@1.1.0"></script>
+
+<!-- Magenta -->
+<script src="https://cdn.jsdelivr.net/npm/@magenta/music@^1.0.0"></script>
+
+<!-- Axios -->
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+<!-- Keyboard, under construction -->
+<script src="https://cdn.jsdelivr.net/npm/audiokeys@0.1.1/dist/audiokeys.min.js"></script>
+
+<!-- D3, for overlaying the Magenta visualizer -->
+<script src="https://d3js.org/d3.v6.min.js"></script>
+
+<!-- Vue -->
+<script src="https://unpkg.com/vue"></script>
+<!-- Chord network -->
+<script src=https://rawgit.com/emiliorizzo/vue-d3-network/master/dist/vue-d3-network.umd.js></script>
+
+<title> Index </title>
+{% endblock %}
+
+{% block body %}
+
+    <!-- Nav Bar -->
+<nav class="navbar navbar-expand-sm bg-light navbar-hover">
+  <div class="collapse navbar-collapse" id="navbarHover">
+      <ul class="navbar-nav mr-auto">   
+          <li class="nav-item dropdown">
+              <button class="dropdown-toggle btn" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Browse Samples
+              </button>
+              <ul class="dropdown-menu">
+                <li id="resample">Random Phrase</li>
+                {% for song in send['songData'] %}
+                  <li><a class="dropdown-item dropdown-toggle">Song {{song}} {{send['songData'][song]['key']}}</a>
+                      <ul class="dropdown-menu">
+                        {% for segment in send['songData'][song] %}
+                          {% if segment != "key" %}
+                          <li><a class="dropdown-item phraseSelect" data-song="{{song}}" data-segment={{segment}} data-key="{{send['songData'][song]['key']}}">Segment {{segment}} {{send['songData'][song][segment]}}</a></li>
+                          {% endif %}
+                        {% endfor %}
+                      </ul>
+                  </li>
+                {% endfor %}
+              </ul>
+          </li>
+      </ul>
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <button class="btn" disabled>Phrase ID: <span id="songID">{{ send['midi_in_path'].split("_")[1][-3:] }}: {{ send['name'] }}</span> <span id="phraseID">{{send['midi_in_path'].split("_")[2][0]}}</span> | Key: <span id="songKey">{{send['key']}}</span></button></button><br> 
+          <!-- <button class="btn" v-on:click="test">test</button><br>  -->
+        </li>
+        <li class="nav-item">
+          <a tabindex="0" class="btn" role="button" data-toggle="popover" data-trigger="focus" title="Help" 
+          data-content="
+          Keyboard shortcuts: <br> 
+          Player: <br>
+          <ul>
+            <li>w / ↑ : Apply the previous progression</li>
+            <li>s / ↓ : Apply the next progression</li>
+            <li>a / ← : Rewind by 1 beat</li>
+            <li>d / → : Fast forward by 1 beat</li>
+            <li>space / enter : Play / pause</li>
+            <li>shift + play: play progression</li>
+            <li>ctrl + play: play original</li>
+            <li>shift + ctrl + play: play original progression</li>
+          </ul>
+          Chord Entry: <br>
+          <ul>
+            <li>shift + click: repeat chord</li>
+            <li>ctrl + click: suggest chord</li>
+            <li>alt + click: play chord</li>
+          </ul>
+          "  data-html="true">
+            Help
+          </a><br>
+        </li>
+    </ul>
+  </div>
+  </nav>
+
+    
+
+
+<div class="container pt-3 pb-5" id="app">
+    <!-- Time steps: Original -->
+      <table id=time_steps class="table table-fixed prog_table">
+        <thead class="thead-light">
+        <tr>
+            <th class = "prog_head table_cell"></th>
+            {% for i in range(1,send['SAMPLE_LEN']+1) %}
+            <th class= "time_cell" id="time{{i}}"> {{1+(i-1)//4}}.{{(i-1)%4+1}} </th>
+            {% endfor %}
+            <th></th>
+        </tr>
+        </thead>
+    </table> 
+    {% if send %}
+        <!-- Visualizer: Original -->
+        <div class="right">
+        <midi-visualizer src="{{url_for('static',filename=send["acc_path"])}}" type="piano-roll" id="vis" class="midi_vis"></midi-visualizer>
+
+        <midi-visualizer src="static/empty.mid" type="piano-roll" id="vis_mel" class="midi_vis overlay_svg"></midi-visualizer>
+
+        <svg class="original_svg svg overlay_svg" height="0px"></svg><br>
+        </div><br>
+
+        <!-- Original Progression -->
+        <table id="original_prog" class="table table-hover table-fixed table-striped prog_table up">
+          <tbody>
+          <tr>
+              <th id=play_prog_original class="prog_head">Original <br> <span id='originalKey'>{{send['key']}}</span></th>
+              {% for i in range(0,send['SAMPLE_LEN']) %}
+              <th id="original_prog{{i}}" class="table_cell" style="font-weight:normal;"> {{ send["chords"][i] }} </td>
+              {% endfor %}
+              <th><button id=play_prog_original2 class="btn btn-light btn-sm">progression</button></th>
+          </tr>
+          </tbody>  
+      </table>
+
+        
+      
+        <!-- Time steps: Altered -->
+        <table id=time_steps_altered class="padded_up_time table table-fixed prog_table" hidden>
+          <thead class="thead-light">
+          <tr>
+              <th class = "prog_head table_cell"></th>
+              {% for i in range(1,send['SAMPLE_LEN']+1) %}
+              <th class= "time_cell" id="time_altered{{i}}"> {{1+(i-1)//4}}.{{(i-1)%4+1}} </th>
+              {% endfor %}
+              <th></th>
+          </tr>
+          </thead>
+        </table> 
+
+        <!-- Visualizer: Altered -->
+        <div id="swapped_player" class="right" hidden>
+          <midi-visualizer type="piano-roll" id="vis_out" class="midi_vis up"></midi-visualizer>
+          <svg class="swapped_svg svg overlay_svg" id="swapped_svg" height="0px"></svg><br>
+        </div>
+
+        <div id="main" class="padded_up">
+          <!-- Altered Progression -->
+            <table id=saved_prog class="table table-hover table-fixed table-striped prog_table" hidden>
+              <tbody>
+              </tbody>
+            </table> 
+
+
+            <p> Input chord: </p>
+            <p id=chd_in_display hidden></p>
+
+        <div class="row">
+
+        <!-- Chord network -->
+            <div class="col-9 container-fluid">
+                    <p> 
+                      Key = C major <br>
+                      1 node = {{send["CHORD_LEN_QUANT"]}} beats
+                    </p>
+                <div id="graph">
+                  <d3-network :net-nodes="nodes" :net-links="links" :options="options" @node-click="nodeClick" :link-cb="lcb"/>
+                  </d3-network>
+                  <div class="row">
+                  <!-- Root menu -->
+                  <div class="col-3">
+                  <table id=root_select hidden>
+                    <thead class="table table-hover table-sm table-bordered">
+                      <th>root</th>
+                    </thead>
+                  </table>
+                  </div>
+                  <!-- Bass/Chroma menu -->
+                  <div class="col-3">
+                  <table id=chroma_select hidden>
+                    <thead class="table table-hover table-sm table-bordered">
+                      <th>bass</th>
+                      <th>chroma</th>
+                    </thead>
+                  </table>
+                  </div>
+                  </div>
+                </div>
+            </div>
+
+            <div class="col-3" id="controls">
+              <div class="dropdown">
+                <button class="btn btn-light dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                  Quick progression
+                </button>
+                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                  {% for item in send['quickProg'] %}
+                  <a class="dropdown-item quickProg" href="#">{{item}}</a>
+                  {% endfor %}
+                </div>
+              </div>
+                <br><br>
+
+                <button id=rep_chd class="btn btn-light"> Add chord </button><br>
+                <button id=play_chd class="quick_chd btn btn-light"> Play chord </button><br>
+                <button id=sug_chd class="btn btn-light"> Suggest chord </button><br>
+                <button id=edit_chd class="btn btn-light"> Edit chord </button><br><br>
+
+                <button id=play_prog class="btn btn-light"> Play progression </button><br>
+                <button id=clear_prog class="btn btn-light"> Clear progression </button><br><br>
+
+                <div class="input-group mb-3">
+                    <div class="input-group-prepend">
+                      <div class="input-group-text" style="width:160px">
+                        <input type="checkbox" id="root_overlay" checked>  &nbsp Root overlay
+                      </div>
+                    </div>
+                    <div class="input-group-prepend">
+                      <div class="input-group-text" style="width:160px">
+                        <input type="checkbox" id="chord_overlay" >  &nbsp Chord overlay
+                      </div>
+                    </div>
+                  </div>
+
+                  <input type=hidden id=chd_in name=chd_in value="{{chords}}">
+                  <input type=hidden id=chd_in_send name="chd">
+                  <button id=submit class="btn btn-primary" disabled>Save New</button>
+                  <button id=submit_overwrite class="btn btn-primary" disabled>Save</button>
+
+                  <br><br>
+                  <ul>
+                    <li>shift + click: repeat chord</li>
+                    <li>ctrl + click: suggest chord</li>
+                    <li>alt + click: play chord</li>
+                  </ul>
+                  
+                <br>
+
+                
+            </div> 
+        </div>
+        </div>
+
+        <div id="swap_in_place" hidden>{{url_for('swap')}}</div>
+        <div id="resample_url" hidden>{{url_for('resample')}}</div>
+
+        <svg >
+          <defs>
+            <marker id="m-end" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth" >
+              <path d="M0,0 L0,6 L9,3 z"></path>
+            <marker id="m-end-highlight" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth" >
+              <path d="M0,0 L0,6 L9,3 z"></path>
+            </marker>
+          </defs>
+        </svg>
+        
+    {% endif %}
+</div>
+
+<div id="note_tooltip" hidden>  </div>
+
+<style>
+  .prog_table{
+    width: {{300+100*send["SAMPLE_LEN"]}}px !important;
+}
+</style>
+<!-- Original Player -->
+      <midi-player class="up" id="player_original" src="{{url_for('static',filename=send["midi_path"])}}" sound-font visualizer="#vis"></midi-player>
+      
+<!-- Altered player -->
+      <midi-player sound-font visualizer="#vis_out" id="player_out" hidden></midi-player>
+
+<svg id=original_barline class="barline_svg"></svg>
+<svg id=altered_barline class="barline_svg"></svg>
+
+<div id="melo_acc_toggle">
+  <div class="input-group-prepend">
+    <div class="input-group-text" style="width:160px">
+      <input type="checkbox" id="mel_checkbox">  &nbsp Melody
+    </div>
+  </div>
+  <div class="input-group-prepend">
+    <div class="input-group-text" style="width:160px">
+      <input type="checkbox" id="acc_checkbox" checked>  &nbsp Accompaniment
+    </div>
+  </div>
+</div>
+
+
+
+<script type="application/javascript"> 
+  var swapped_chd = 0;
+
+  var midi_path= '{{send["acc_path"]}}'
+  var mixed_path= '{{send["midi_path"]}}'
+  var mel_path= '{{send["mel_path"]}}'
+  var acc_path= '{{send["acc_path"]}}'
+  var chords = '{{send["chords"]}}'
+  var original_chd = JSON.parse('{{send["chd_mat"]|tojson}}')
+  var SAMPLE_LEN = '{{send["SAMPLE_LEN"]}}';
+  var CHORD_LEN_QUANT = '{{send["CHORD_LEN_QUANT"]}}';
+  var quickProg = JSON.parse('{{send["quickProg"]|tojson}}')
+  var explore_prog = '{{url_for('explore_prog')}}'
+</script>
+<script type="application/javascript" src="{{url_for('static', filename='main.js')}}"></script>
+    
+{% endblock %}
